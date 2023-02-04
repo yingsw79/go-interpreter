@@ -130,6 +130,8 @@ func (p *Parser) parseReturnStatement() (*ast.ReturnStatement, error) {
 }
 
 func (p *Parser) parseExpressionStatement() (*ast.ExpressionStatement, error) {
+	defer untrace(trace("parseExpressionStatement"))
+
 	stmt := &ast.ExpressionStatement{Token: p.curToken}
 
 	var err error
@@ -146,10 +148,14 @@ func (p *Parser) parseExpressionStatement() (*ast.ExpressionStatement, error) {
 }
 
 func (p *Parser) parseIdentifier() (ast.Expression, error) {
+	defer untrace(trace("parseIdentifier"))
+
 	return &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}, nil
 }
 
 func (p *Parser) parseIntegerLiteral() (ast.Expression, error) {
+	defer untrace(trace("parseIntegerLiteral"))
+
 	value, err := strconv.ParseInt(p.curToken.Literal, 0, 64)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse %q as integer", p.curToken.Literal)
@@ -159,6 +165,8 @@ func (p *Parser) parseIntegerLiteral() (ast.Expression, error) {
 }
 
 func (p *Parser) parsePrefixExpression() (ast.Expression, error) {
+	defer untrace(trace("parsePrefixExpression"))
+
 	exp := &ast.PrefixExpression{
 		Token:    p.curToken,
 		Operator: p.curToken.Literal,
@@ -173,6 +181,8 @@ func (p *Parser) parsePrefixExpression() (ast.Expression, error) {
 }
 
 func (p *Parser) parseInfixExpression(left ast.Expression) (ast.Expression, error) {
+	defer untrace(trace("parseInfixExpression"))
+
 	exp := &ast.InfixExpression{
 		Token:    p.curToken,
 		Operator: p.curToken.Literal,
@@ -189,6 +199,8 @@ func (p *Parser) parseInfixExpression(left ast.Expression) (ast.Expression, erro
 }
 
 func (p *Parser) parseExpression(precedence int) (exp ast.Expression, err error) {
+	defer untrace(trace("parseExpression"))
+
 	prefix, ok := p.prefixParseFns[p.curToken.Type]
 	if !ok {
 		return nil, fmt.Errorf("no prefix parse function for %s found", p.curToken.Type)
