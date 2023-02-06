@@ -1,4 +1,4 @@
-package parser
+package util
 
 import (
 	"fmt"
@@ -17,13 +17,13 @@ func tracePrint(fs string) {
 	fmt.Printf("%s%s\n", identLevel(), fs)
 }
 
-func trace(msg string) string {
+func Trace(msg string) string {
 	traceLevel++
 	tracePrint("BEGIN " + msg)
 	return msg
 }
 
-func untrace(msg string) {
+func Untrace(msg string) {
 	tracePrint("END " + msg)
 	traceLevel--
 }

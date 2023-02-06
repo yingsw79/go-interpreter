@@ -4,11 +4,11 @@ const (
 	ILLEGAL = "ILLEGAL"
 	EOF     = "EOF"
 
-	// 标识符+字面量
+	// Identifiers + literals
 	IDENT = "IDENT"
 	INT   = "INT"
 
-	// 运算符
+	// Operators
 	ASSIGN   = "="
 	BANG     = "!"
 	PLUS     = "+"
@@ -20,7 +20,7 @@ const (
 	EQ       = "=="
 	NOT_EQ   = "!="
 
-	// 分隔符
+	// Delimiters
 	COMMA     = ","
 	SEMICOLON = ";"
 	LPAREN    = "("
@@ -28,7 +28,7 @@ const (
 	LBRACE    = "{"
 	RBRACE    = "}"
 
-	// 关键字
+	// Keywords
 	FUNCTION = "FUNCTION"
 	LET      = "LET"
 	TRUE     = "TRUE"
