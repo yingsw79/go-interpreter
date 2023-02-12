@@ -1,52 +1,54 @@
 package evaluator
 
 import (
+	"errors"
+	"fmt"
 	"go-interpreter/ast"
 	"go-interpreter/object"
 )
 
-func Eval(node ast.Node) object.Object {
+func Eval(node ast.Node) (object.Object, error) {
 	switch node := node.(type) {
 	case *ast.Program:
-		return evalProgram(node.Statements)
+		return evalProgram(node)
+
 	case *ast.BlockStatement:
-		return evalBlockStatement(node.Statements)
+		return evalBlockStatement(node)
+
 	case *ast.ExpressionStatement:
-		return Eval(node.Expression)
-	case *ast.IntegerLiteral:
-		return object.NewInteger(node.Value)
-	case *ast.Boolean:
-		return object.NewBoolean(node.Value)
+		return evalExpressionStatement(node)
+
 	case *ast.ReturnStatement:
-		return object.NewReturnValue(Eval(node.ReturnValue))
+		return evalReturnStatement(node)
+
+	case *ast.IntegerLiteral:
+		return evalIntegerLiteral(node)
+
+	case *ast.Boolean:
+		return evalBoolean(node)
+
 	case *ast.PrefixExpression:
-		return evalPrefixExpression(node.Operator, Eval(node.Right))
+		return evalPrefixExpression(node)
+
 	case *ast.InfixExpression:
-		return evalInfixExpression(node.Operator, Eval(node.Left), Eval(node.Right))
+		return evalInfixExpression(node)
+
 	case *ast.IfExpression:
 		return evalIfExpression(node)
+
 	default:
-		return nil
+		return nil, errors.New("invalid syntax")
 	}
 }
 
-func evalProgram(stmts []ast.Statement) (res object.Object) {
-	for _, statement := range stmts {
-		res = Eval(statement)
+func evalProgram(p *ast.Program) (res object.Object, err error) {
+	for _, statement := range p.Statements {
+		if res, err = Eval(statement); err != nil {
+			return
+		}
 
 		if returnValue, ok := res.(*object.ReturnValue); ok {
-			return returnValue.Value
-		}
-	}
-
-	return
-}
-
-func evalBlockStatement(stmts []ast.Statement) (res object.Object) {
-	for _, statement := range stmts {
-		res = Eval(statement)
-
-		if res != nil && res.Type() == object.RETURN_VALUE_OBJ {
+			res = returnValue.Value
 			return
 		}
 	}
@@ -54,85 +56,137 @@ func evalBlockStatement(stmts []ast.Statement) (res object.Object) {
 	return
 }
 
-func evalPrefixExpression(operator string, right object.Object) object.Object {
-	switch operator {
-	case "!":
-		return evalBangOperatorExpression(right)
-	case "-":
-		return evalMinusPrefixOperatorExpression(right)
-	default:
-		return object.NULL
-	}
-}
-
-func evalBangOperatorExpression(right object.Object) object.Object {
-	switch t := right.(type) {
-	case *object.Boolean:
-		return object.NewBoolean(!t.Value)
-	case *object.Integer:
-		return object.NewBoolean(t.Value == 0)
-	case *object.Null:
-		return object.TRUE
-	default:
-		return object.FALSE
-	}
-}
-
-func evalMinusPrefixOperatorExpression(right object.Object) object.Object {
-	if right.Type() == object.INTEGER_OBJ || right.Type() == object.BOOLEAN_OBJ {
-		return object.NewInteger(-objectToInteger(right))
-	}
-
-	return object.NULL
-}
-
-func evalInfixExpression(operator string, left, right object.Object) object.Object {
-	if left.Type() == object.NULL_OBJ && right.Type() == object.NULL_OBJ {
-		switch operator {
-		case "==":
-			return object.TRUE
-		case "!=":
-			return object.FALSE
-		default:
-			return object.NULL
+func evalBlockStatement(bs *ast.BlockStatement) (res object.Object, err error) {
+	for _, statement := range bs.Statements {
+		if res, err = Eval(statement); err != nil || res.Type() == object.RETURN_VALUE_OBJ {
+			return
 		}
-	} else if (left.Type() == object.INTEGER_OBJ || left.Type() == object.BOOLEAN_OBJ) &&
-		(right.Type() == object.INTEGER_OBJ || right.Type() == object.BOOLEAN_OBJ) {
-		return evalIntegerInfixExpression(operator, objectToInteger(left), objectToInteger(right))
 	}
 
-	return object.NULL
+	return
 }
 
-func evalIntegerInfixExpression(operator string, lv, rv int64) object.Object {
+func evalExpressionStatement(es *ast.ExpressionStatement) (object.Object, error) {
+	return Eval(es.Expression)
+}
+
+func evalReturnStatement(rs *ast.ReturnStatement) (object.Object, error) {
+	r, err := Eval(rs.ReturnValue)
+	if err != nil {
+		return nil, err
+	}
+
+	return object.NewReturnValue(r), nil
+}
+
+func evalIntegerLiteral(il *ast.IntegerLiteral) (object.Object, error) {
+	return object.NewInteger(il.Value), nil
+}
+
+func evalBoolean(b *ast.Boolean) (object.Object, error) {
+	return object.NewBoolean(b.Value), nil
+}
+
+func evalPrefixExpression(pe *ast.PrefixExpression) (object.Object, error) {
+	r, err := Eval(pe.Right)
+	if err != nil {
+		return nil, err
+	}
+
+	switch pe.Operator {
+	case "!":
+		return evalBangOperatorExpression(r)
+	case "-":
+		return evalMinusPrefixOperatorExpression(r)
+	default:
+		return nil, fmt.Errorf("unknown operator: %s%s", pe.Operator, r.Type())
+	}
+}
+
+func evalBangOperatorExpression(obj object.Object) (object.Object, error) {
+	switch obj := obj.(type) {
+	case *object.Boolean:
+		return object.NewBoolean(!obj.Value), nil
+	case *object.Integer:
+		return object.NewBoolean(obj.Value == 0), nil
+	case *object.Null:
+		return object.TRUE, nil
+	case *object.ReturnValue:
+		return nil, fmt.Errorf("bad operand type for unary !: %s", obj.Type())
+	default:
+		return object.FALSE, nil
+	}
+}
+
+func evalMinusPrefixOperatorExpression(obj object.Object) (object.Object, error) {
+	if obj.Type() == object.INTEGER_OBJ || obj.Type() == object.BOOLEAN_OBJ {
+		return object.NewInteger(-objectToInteger(obj)), nil
+	}
+
+	return nil, fmt.Errorf("bad operand type for unary -: %s", obj.Type())
+}
+
+func evalInfixExpression(ie *ast.InfixExpression) (object.Object, error) {
+	l, err := Eval(ie.Left)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := Eval(ie.Right)
+	if err != nil {
+		return nil, err
+	}
+
+	if l.Type() == object.NULL_OBJ && r.Type() == object.NULL_OBJ {
+		switch ie.Operator {
+		case "==":
+			return object.TRUE, nil
+		case "!=":
+			return object.FALSE, nil
+		}
+	} else if (l.Type() == object.INTEGER_OBJ || l.Type() == object.BOOLEAN_OBJ) &&
+		(r.Type() == object.INTEGER_OBJ || r.Type() == object.BOOLEAN_OBJ) {
+		return evalIntegerInfixExpression(ie.Operator, l, r)
+	}
+
+	return nil, fmt.Errorf("%s not supported between %s and %s", ie.Operator, l.Type(), r.Type())
+}
+
+func evalIntegerInfixExpression(operator string, l, r object.Object) (object.Object, error) {
+	lv, rv := objectToInteger(l), objectToInteger(r)
+
 	switch operator {
 	case "+":
-		return object.NewInteger(lv + rv)
+		return object.NewInteger(lv + rv), nil
 	case "-":
-		return object.NewInteger(lv - rv)
+		return object.NewInteger(lv - rv), nil
 	case "*":
-		return object.NewInteger(lv * rv)
+		return object.NewInteger(lv * rv), nil
 	case "/":
-		return object.NewInteger(lv / rv)
+		if rv == 0 {
+			return nil, errors.New("division by zero")
+		}
+
+		return object.NewInteger(lv / rv), nil
 	case "<":
-		return object.NewBoolean(lv < rv)
+		return object.NewBoolean(lv < rv), nil
 	case ">":
-		return object.NewBoolean(lv > rv)
+		return object.NewBoolean(lv > rv), nil
 	case "==":
-		return object.NewBoolean(lv == rv)
+		return object.NewBoolean(lv == rv), nil
 	case "!=":
-		return object.NewBoolean(lv != rv)
+		return object.NewBoolean(lv != rv), nil
 	default:
-		return object.NULL
+		return nil, fmt.Errorf("unknown operator: %s %s %s", l.Type(), operator, r.Type())
 	}
 }
 
 func objectToInteger(obj object.Object) int64 {
-	switch t := obj.(type) {
+	switch obj := obj.(type) {
 	case *object.Integer:
-		return t.Value
+		return obj.Value
 	case *object.Boolean:
-		if t.Value {
+		if obj.Value {
 			return 1
 		}
 		return 0
@@ -141,8 +195,11 @@ func objectToInteger(obj object.Object) int64 {
 	}
 }
 
-func evalIfExpression(ie *ast.IfExpression) object.Object {
-	condition := Eval(ie.Condition)
+func evalIfExpression(ie *ast.IfExpression) (object.Object, error) {
+	condition, err := Eval(ie.Condition)
+	if err != nil {
+		return nil, err
+	}
 
 	if isTruthy(condition) {
 		return Eval(ie.Consequence)
@@ -150,15 +207,15 @@ func evalIfExpression(ie *ast.IfExpression) object.Object {
 		return Eval(ie.Alternative)
 	}
 
-	return object.NULL
+	return object.NULL, nil
 }
 
 func isTruthy(obj object.Object) bool {
-	switch t := obj.(type) {
+	switch obj := obj.(type) {
 	case *object.Boolean:
-		return t.Value
+		return obj.Value
 	case *object.Integer:
-		return t.Value != 0
+		return obj.Value != 0
 	case *object.Null:
 		return false
 	default:

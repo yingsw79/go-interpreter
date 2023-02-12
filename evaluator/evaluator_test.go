@@ -30,12 +30,16 @@ func TestEvalIntegerExpression(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated, err := testEval(tt.input)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		testIntegerObject(t, evaluated, tt.expected)
 	}
 }
 
-func testEval(input string) object.Object {
+func testEval(input string) (object.Object, error) {
 	p := parser.NewParser(lexer.NewLexer(input))
 	program := p.ParseProgram()
 
@@ -48,6 +52,7 @@ func testIntegerObject(t *testing.T, obj object.Object, expected int64) bool {
 		t.Errorf("object is not Integer. got=%T (%+v)", obj, obj)
 		return false
 	}
+
 	if result.Value != expected {
 		t.Errorf("object has wrong value. got=%d, want=%d", result.Value, expected)
 		return false
@@ -83,7 +88,11 @@ func TestEvalBooleanExpression(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated, err := testEval(tt.input)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		testBooleanObject(t, evaluated, tt.expected)
 	}
 }
@@ -94,10 +103,12 @@ func testBooleanObject(t *testing.T, obj object.Object, expected bool) bool {
 		t.Errorf("object is not Boolean. got=%T (%+v)", obj, obj)
 		return false
 	}
+
 	if result.Value != expected {
 		t.Errorf("object has wrong value. got=%t, want=%t", result.Value, expected)
 		return false
 	}
+
 	return true
 }
 
@@ -115,7 +126,11 @@ func TestBangOperator(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated, err := testEval(tt.input)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		testBooleanObject(t, evaluated, tt.expected)
 	}
 }
@@ -135,7 +150,11 @@ func TestIfElseExpressions(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated, err := testEval(tt.input)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		integer, ok := tt.expected.(int)
 		if ok {
 			testIntegerObject(t, evaluated, int64(integer))
@@ -150,6 +169,7 @@ func testNullObject(t *testing.T, obj object.Object) bool {
 		t.Errorf("object is not NULL. got=%T (%+v)", obj, obj)
 		return false
 	}
+
 	return true
 }
 
@@ -173,7 +193,11 @@ func TestReturnStatements(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated, err := testEval(tt.input)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		testIntegerObject(t, evaluated, tt.expected)
 	}
 }

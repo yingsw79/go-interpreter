@@ -32,10 +32,13 @@ func Start(in io.Reader, out io.Writer) {
 			continue
 		}
 
-		res := evaluator.Eval(program)
-		if res != nil {
-			fmt.Fprintln(out, res.Inspect())
+		res, err := evaluator.Eval(program)
+		if err != nil {
+			fmt.Fprintln(out, err)
+			continue
 		}
+
+		fmt.Fprintln(out, res.Inspect())
 	}
 }
 
