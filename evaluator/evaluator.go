@@ -18,8 +18,14 @@ func Eval(node ast.Node) (object.Object, error) {
 	case *ast.ExpressionStatement:
 		return evalExpressionStatement(node)
 
+	case *ast.LetStatement:
+		return evalLetStatement(node)
+
 	case *ast.ReturnStatement:
 		return evalReturnStatement(node)
+
+	case *ast.Identifier:
+		return evalIdentifier(node)
 
 	case *ast.IntegerLiteral:
 		return evalIntegerLiteral(node)
@@ -70,13 +76,33 @@ func evalExpressionStatement(es *ast.ExpressionStatement) (object.Object, error)
 	return Eval(es.Expression)
 }
 
-func evalReturnStatement(rs *ast.ReturnStatement) (object.Object, error) {
-	r, err := Eval(rs.ReturnValue)
+func evalLetStatement(ls *ast.LetStatement) (object.Object, error) {
+	val, err := Eval(ls.Value)
 	if err != nil {
 		return nil, err
 	}
 
-	return object.NewReturnValue(r), nil
+	object.ENV.Set(ls.Name.Value, val)
+
+	return nil, nil
+}
+
+func evalReturnStatement(rs *ast.ReturnStatement) (object.Object, error) {
+	val, err := Eval(rs.ReturnValue)
+	if err != nil {
+		return nil, err
+	}
+
+	return object.NewReturnValue(val), nil
+}
+
+func evalIdentifier(ident *ast.Identifier) (object.Object, error) {
+	val, ok := object.ENV.Get(ident.Value)
+	if !ok {
+		return nil, fmt.Errorf("name %q is not defined", ident.Value)
+	}
+
+	return val, nil
 }
 
 func evalIntegerLiteral(il *ast.IntegerLiteral) (object.Object, error) {
@@ -88,18 +114,18 @@ func evalBoolean(b *ast.Boolean) (object.Object, error) {
 }
 
 func evalPrefixExpression(pe *ast.PrefixExpression) (object.Object, error) {
-	r, err := Eval(pe.Right)
+	val, err := Eval(pe.Right)
 	if err != nil {
 		return nil, err
 	}
 
 	switch pe.Operator {
 	case "!":
-		return evalBangOperatorExpression(r)
+		return evalBangOperatorExpression(val)
 	case "-":
-		return evalMinusPrefixOperatorExpression(r)
+		return evalMinusPrefixOperatorExpression(val)
 	default:
-		return nil, fmt.Errorf("unknown operator: %s%s", pe.Operator, r.Type())
+		return nil, fmt.Errorf("unknown operator: %q", pe.Operator)
 	}
 }
 
@@ -112,7 +138,7 @@ func evalBangOperatorExpression(obj object.Object) (object.Object, error) {
 	case *object.Null:
 		return object.TRUE, nil
 	case *object.ReturnValue:
-		return nil, fmt.Errorf("bad operand type for unary !: %s", obj.Type())
+		return nil, fmt.Errorf("bad operand type for unary !: %q", obj.Type())
 	default:
 		return object.FALSE, nil
 	}
@@ -123,7 +149,7 @@ func evalMinusPrefixOperatorExpression(obj object.Object) (object.Object, error)
 		return object.NewInteger(-objectToInteger(obj)), nil
 	}
 
-	return nil, fmt.Errorf("bad operand type for unary -: %s", obj.Type())
+	return nil, fmt.Errorf("bad operand type for unary -: %q", obj.Type())
 }
 
 func evalInfixExpression(ie *ast.InfixExpression) (object.Object, error) {
@@ -149,7 +175,7 @@ func evalInfixExpression(ie *ast.InfixExpression) (object.Object, error) {
 		return evalIntegerInfixExpression(ie.Operator, l, r)
 	}
 
-	return nil, fmt.Errorf("%s not supported between %s and %s", ie.Operator, l.Type(), r.Type())
+	return nil, fmt.Errorf("%q not supported between %q and %q", ie.Operator, l.Type(), r.Type())
 }
 
 func evalIntegerInfixExpression(operator string, l, r object.Object) (object.Object, error) {
@@ -177,7 +203,7 @@ func evalIntegerInfixExpression(operator string, l, r object.Object) (object.Obj
 	case "!=":
 		return object.NewBoolean(lv != rv), nil
 	default:
-		return nil, fmt.Errorf("unknown operator: %s %s %s", l.Type(), operator, r.Type())
+		return nil, fmt.Errorf("unknown operator: %q", operator)
 	}
 }
 

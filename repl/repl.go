@@ -38,7 +38,9 @@ func Start(in io.Reader, out io.Writer) {
 			continue
 		}
 
-		fmt.Fprintln(out, res.Inspect())
+		if res != nil {
+			fmt.Fprintln(out, res.Inspect())
+		}
 	}
 }
 
