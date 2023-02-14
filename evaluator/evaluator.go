@@ -70,7 +70,11 @@ func evalProgram(p *ast.Program, env *object.Environment) (res object.Object, er
 
 func evalBlockStatement(bs *ast.BlockStatement, env *object.Environment) (res object.Object, err error) {
 	for _, statement := range bs.Statements {
-		if res, err = Eval(statement, env); err != nil || res.Type() == object.RETURN_VALUE_OBJ {
+		if res, err = Eval(statement, env); err != nil {
+			return
+		}
+
+		if res != nil && res.Type() == object.RETURN_VALUE_OBJ {
 			return
 		}
 	}

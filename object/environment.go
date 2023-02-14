@@ -21,7 +21,6 @@ func (e *Environment) Get(name string) (Object, bool) {
 	return obj, ok
 }
 
-func (e *Environment) Set(name string, val Object) Object {
+func (e *Environment) Set(name string, val Object) {
 	e.store[name] = val
-	return val
 }
