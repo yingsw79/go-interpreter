@@ -111,9 +111,12 @@ func (bs *BlockStatement) TokenLiteral() string { return bs.Token.Literal }
 func (bs *BlockStatement) String() string {
 	var b strings.Builder
 
-	for _, s := range bs.Statements {
-		b.WriteString(s.String())
+	stmts := []string{}
+	for _, stmt := range bs.Statements {
+		stmts = append(stmts, stmt.String())
 	}
+
+	b.WriteString(strings.Join(stmts, "\n"))
 
 	return b.String()
 }
