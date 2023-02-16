@@ -33,6 +33,9 @@ func Eval(node ast.Node, env *object.Environment) (object.Object, error) {
 	case *ast.Boolean:
 		return evalBoolean(node)
 
+	case *ast.StringLiteral:
+		return evalStringLiteral(node)
+
 	case *ast.PrefixExpression:
 		return evalPrefixExpression(node, env)
 
@@ -115,6 +118,10 @@ func evalIdentifier(ident *ast.Identifier, env *object.Environment) (object.Obje
 	return val, nil
 }
 
+func evalStringLiteral(s *ast.StringLiteral) (object.Object, error) {
+	return object.NewString(s.Value), nil
+}
+
 func evalIntegerLiteral(il *ast.IntegerLiteral) (object.Object, error) {
 	return object.NewInteger(il.Value), nil
 }
@@ -180,9 +187,13 @@ func evalInfixExpression(ie *ast.InfixExpression, env *object.Environment) (obje
 		case "!=":
 			return object.FALSE, nil
 		}
+
 	} else if (l.Type() == object.INTEGER_OBJ || l.Type() == object.BOOLEAN_OBJ) &&
 		(r.Type() == object.INTEGER_OBJ || r.Type() == object.BOOLEAN_OBJ) {
 		return evalIntegerInfixExpression(ie.Operator, l, r)
+
+	} else if l.Type() == object.STRING_OBJ && r.Type() == object.STRING_OBJ {
+		return evalStringInfixExpression(ie.Operator, l, r)
 	}
 
 	return nil, fmt.Errorf("%q not supported between %q and %q", ie.Operator, l.Type(), r.Type())
@@ -213,7 +224,7 @@ func evalIntegerInfixExpression(operator string, l, r object.Object) (object.Obj
 	case "!=":
 		return object.NewBoolean(lv != rv), nil
 	default:
-		return nil, fmt.Errorf("unknown operator: %q", operator)
+		return nil, fmt.Errorf("%q not supported between %q and %q", operator, l.Type(), r.Type())
 	}
 }
 
@@ -228,6 +239,25 @@ func objectToInteger(obj object.Object) int64 {
 		return 0
 	default:
 		return 0
+	}
+}
+
+func evalStringInfixExpression(operator string, l, r object.Object) (object.Object, error) {
+	lv, rv := l.(*object.String).Value, r.(*object.String).Value
+
+	switch operator {
+	case "+":
+		return object.NewString(lv + rv), nil
+	case "<":
+		return object.NewBoolean(lv < rv), nil
+	case ">":
+		return object.NewBoolean(lv > rv), nil
+	case "==":
+		return object.NewBoolean(lv == rv), nil
+	case "!=":
+		return object.NewBoolean(lv != rv), nil
+	default:
+		return nil, fmt.Errorf("%q not supported between %q and %q", operator, l.Type(), r.Type())
 	}
 }
 

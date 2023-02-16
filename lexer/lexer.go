@@ -15,8 +15,8 @@ func NewLexer(input string) *Lexer {
 	return l
 }
 
-func (l *Lexer) NextToken() (tok *token.Token) {
-	tok = &token.Token{}
+func (l *Lexer) NextToken() *token.Token {
+	tok := &token.Token{}
 
 	l.skipWhitespace()
 
@@ -59,23 +59,25 @@ func (l *Lexer) NextToken() (tok *token.Token) {
 		tok = token.NewToken(token.LBRACE, s)
 	case '}':
 		tok = token.NewToken(token.RBRACE, s)
+	case '"':
+		tok = token.NewToken(token.STRING, l.readString())
 	case 0:
 		tok = token.NewToken(token.EOF, "")
 	default:
 		if isLetter(l.ch) {
 			tok.Literal = l.readIdentifier()
 			tok.Type = token.LookupIdent(tok.Literal)
-			return
+			return tok
 		} else if isDigit(l.ch) {
 			tok = token.NewToken(token.INT, l.readNumber())
-			return
+			return tok
 		} else {
 			tok = token.NewToken(token.ILLEGAL, s)
 		}
 	}
 
 	l.readChar()
-	return
+	return tok
 }
 
 func (l *Lexer) readChar() {
@@ -113,6 +115,17 @@ func (l *Lexer) readNumber() string {
 	p := l.position
 	for isDigit(l.ch) {
 		l.readChar()
+	}
+	return l.input[p:l.position]
+}
+
+func (l *Lexer) readString() string {
+	p := l.position + 1
+	for {
+		l.readChar()
+		if l.ch == '"' || l.ch == 0 {
+			break
+		}
 	}
 	return l.input[p:l.position]
 }

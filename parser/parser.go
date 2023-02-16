@@ -52,6 +52,7 @@ func NewParser(l *lexer.Lexer) *Parser {
 	}
 
 	p.registerPrefix(token.IDENT, p.parseIdentifier)
+	p.registerPrefix(token.STRING, p.parseStringLiteral)
 	p.registerPrefix(token.INT, p.parseIntegerLiteral)
 	p.registerPrefix(token.BANG, p.parsePrefixExpression)
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
@@ -394,6 +395,10 @@ func (p *Parser) parseCallArguments() ([]ast.Expression, error) {
 
 func (p *Parser) parseIdentifier() (ast.Expression, error) {
 	return ast.NewIdentifier(p.curToken, p.curToken.Literal), nil
+}
+
+func (p *Parser) parseStringLiteral() (ast.Expression, error) {
+	return ast.NewStringLiteral(p.curToken, p.curToken.Literal), nil
 }
 
 func (p *Parser) parseIntegerLiteral() (ast.Expression, error) {

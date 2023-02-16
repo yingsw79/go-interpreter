@@ -5,8 +5,9 @@ const (
 	EOF     = "EOF"
 
 	// Identifiers + literals
-	IDENT = "IDENT"
-	INT   = "INT"
+	IDENT  = "IDENT"
+	STRING = "STRING"
+	INT    = "INT"
 
 	// Operators
 	ASSIGN   = "="
@@ -23,6 +24,7 @@ const (
 	// Delimiters
 	COMMA     = ","
 	SEMICOLON = ";"
+	COLON     = ":"
 	LPAREN    = "("
 	RPAREN    = ")"
 	LBRACE    = "{"
