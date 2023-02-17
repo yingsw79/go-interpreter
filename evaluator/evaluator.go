@@ -152,10 +152,10 @@ func evalBangOperatorExpression(obj object.Object) (object.Object, error) {
 		return object.NewBoolean(!obj.Value), nil
 	case *object.Integer:
 		return object.NewBoolean(obj.Value == 0), nil
+	case *object.String:
+		return object.NewBoolean(obj.Value == ""), nil
 	case *object.Null:
 		return object.TRUE, nil
-	case *object.ReturnValue:
-		return nil, fmt.Errorf("bad operand type for unary !: %q", obj.Type())
 	default:
 		return object.FALSE, nil
 	}
@@ -282,6 +282,8 @@ func isTruthy(obj object.Object) bool {
 		return obj.Value
 	case *object.Integer:
 		return obj.Value != 0
+	case *object.String:
+		return obj.Value != ""
 	case *object.Null:
 		return false
 	default:
