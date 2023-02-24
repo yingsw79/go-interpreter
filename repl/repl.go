@@ -23,9 +23,6 @@ func Start(in io.Reader, out io.Writer) {
 		}
 
 		t := scanner.Text()
-		if t == "exit" {
-			break
-		}
 
 		p := parser.NewParser(lexer.NewLexer(t))
 		program := p.ParseProgram()
@@ -36,7 +33,7 @@ func Start(in io.Reader, out io.Writer) {
 
 		res, err := evaluator.Eval(program, env)
 		if err != nil {
-			fmt.Fprintln(out, err)
+			fmt.Fprintln(out, "Error:", err)
 			continue
 		}
 

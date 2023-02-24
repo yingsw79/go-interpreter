@@ -348,3 +348,23 @@ addTwo(2);`
 
 	testIntegerObject(t, evaluated, 4)
 }
+
+func TestBuiltinFunctions(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected int64
+	}{
+		{`len("")`, 0},
+		{`len("four")`, 4},
+		{`len("hello world")`, 11},
+	}
+
+	for _, tt := range tests {
+		evaluated, err := testEval(tt.input)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		testIntegerObject(t, evaluated, tt.expected)
+	}
+}

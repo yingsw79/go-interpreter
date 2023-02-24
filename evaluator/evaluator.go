@@ -110,12 +110,15 @@ func evalReturnStatement(rs *ast.ReturnStatement, env *object.Environment) (obje
 }
 
 func evalIdentifier(ident *ast.Identifier, env *object.Environment) (object.Object, error) {
-	val, ok := env.Get(ident.Value)
-	if !ok {
-		return nil, fmt.Errorf("name %q is not defined", ident.Value)
+	if val, ok := env.Get(ident.Value); ok {
+		return val, nil
 	}
 
-	return val, nil
+	if builtin, ok := builtins[ident.Value]; ok {
+		return builtin, nil
+	}
+
+	return nil, fmt.Errorf("name '%s' is not defined", ident.Value)
 }
 
 func evalStringLiteral(s *ast.StringLiteral) (object.Object, error) {
@@ -142,7 +145,7 @@ func evalPrefixExpression(pe *ast.PrefixExpression, env *object.Environment) (ob
 	case "-":
 		return evalMinusPrefixOperatorExpression(val)
 	default:
-		return nil, fmt.Errorf("unknown operator: %q", pe.Operator)
+		return nil, fmt.Errorf("unknown operator: '%s'", pe.Operator)
 	}
 }
 
@@ -166,7 +169,7 @@ func evalMinusPrefixOperatorExpression(obj object.Object) (object.Object, error)
 		return object.NewInteger(-objectToInteger(obj)), nil
 	}
 
-	return nil, fmt.Errorf("bad operand type for unary -: %q", obj.Type())
+	return nil, fmt.Errorf("bad operand type for unary -: '%s'", obj.Type())
 }
 
 func evalInfixExpression(ie *ast.InfixExpression, env *object.Environment) (object.Object, error) {
@@ -196,7 +199,7 @@ func evalInfixExpression(ie *ast.InfixExpression, env *object.Environment) (obje
 		return evalStringInfixExpression(ie.Operator, l, r)
 	}
 
-	return nil, fmt.Errorf("%q not supported between %q and %q", ie.Operator, l.Type(), r.Type())
+	return nil, fmt.Errorf("'%s' not supported between '%s' and '%s'", ie.Operator, l.Type(), r.Type())
 }
 
 func evalIntegerInfixExpression(operator string, l, r object.Object) (object.Object, error) {
@@ -224,7 +227,7 @@ func evalIntegerInfixExpression(operator string, l, r object.Object) (object.Obj
 	case "!=":
 		return object.NewBoolean(lv != rv), nil
 	default:
-		return nil, fmt.Errorf("%q not supported between %q and %q", operator, l.Type(), r.Type())
+		return nil, fmt.Errorf("'%s' not supported between '%s' and '%s'", operator, l.Type(), r.Type())
 	}
 }
 
@@ -257,7 +260,7 @@ func evalStringInfixExpression(operator string, l, r object.Object) (object.Obje
 	case "!=":
 		return object.NewBoolean(lv != rv), nil
 	default:
-		return nil, fmt.Errorf("%q not supported between %q and %q", operator, l.Type(), r.Type())
+		return nil, fmt.Errorf("'%s' not supported between '%s' and '%s'", operator, l.Type(), r.Type())
 	}
 }
 
@@ -334,20 +337,24 @@ func extendFunctionEnv(fn *object.Function, args []object.Object) *object.Enviro
 }
 
 func applyFunction(obj object.Object, args []object.Object) (object.Object, error) {
-	fn, ok := obj.(*object.Function)
-	if !ok {
-		return nil, fmt.Errorf("not a function: %q", obj.Type())
-	}
+	switch fn := obj.(type) {
+	case *object.Function:
+		extendEnv := extendFunctionEnv(fn, args)
+		res, err := Eval(fn.Body, extendEnv)
+		if err != nil {
+			return nil, err
+		}
 
-	extendEnv := extendFunctionEnv(fn, args)
-	res, err := Eval(fn.Body, extendEnv)
-	if err != nil {
-		return nil, err
-	}
+		if returnValue, ok := res.(*object.ReturnValue); ok {
+			res = returnValue.Value
+		}
 
-	if returnValue, ok := res.(*object.ReturnValue); ok {
-		res = returnValue.Value
-	}
+		return res, nil
 
-	return res, nil
+	case *object.Builtin:
+		return fn.Fn(args...)
+
+	default:
+		return nil, fmt.Errorf("not a function: '%s'", obj.Type())
+	}
 }
