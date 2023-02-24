@@ -285,3 +285,45 @@ func (ce *CallExpression) String() string {
 
 	return b.String()
 }
+
+type ArrayLiteral struct {
+	Token    *token.Token // The '[' token
+	Elements []Expression
+}
+
+func (al *ArrayLiteral) expressionNode()      {}
+func (al *ArrayLiteral) TokenLiteral() string { return al.Token.Literal }
+func (al *ArrayLiteral) String() string {
+	var b strings.Builder
+
+	elements := []string{}
+	for _, el := range al.Elements {
+		elements = append(elements, el.String())
+	}
+
+	b.WriteString("[")
+	b.WriteString(strings.Join(elements, ", "))
+	b.WriteString("]")
+
+	return b.String()
+}
+
+type IndexExpression struct {
+	Token *token.Token // The '[' token
+	Left  Expression
+	Index Expression
+}
+
+func (ie *IndexExpression) expressionNode()      {}
+func (ie *IndexExpression) TokenLiteral() string { return ie.Token.Literal }
+func (ie *IndexExpression) String() string {
+	var b strings.Builder
+
+	b.WriteString("(")
+	b.WriteString(ie.Left.String())
+	b.WriteString("[")
+	b.WriteString(ie.Index.String())
+	b.WriteString("])")
+
+	return b.String()
+}

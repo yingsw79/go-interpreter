@@ -17,6 +17,7 @@ const (
 	PRODUCT     // *
 	PREFIX      // -X or !X
 	CALL        // myFunction(X)
+	INDEX       // array[index]
 )
 
 var precedences = map[token.TokenType]int{
@@ -29,6 +30,7 @@ var precedences = map[token.TokenType]int{
 	token.SLASH:    PRODUCT,
 	token.ASTERISK: PRODUCT,
 	token.LPAREN:   CALL,
+	token.LBRACKET: INDEX,
 }
 
 type (
@@ -61,6 +63,7 @@ func NewParser(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
 	p.registerPrefix(token.IF, p.parseIfExpression)
 	p.registerPrefix(token.FUNCTION, p.parseFunctionLiteral)
+	p.registerPrefix(token.LBRACKET, p.parseArrayLiteral)
 
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
 	p.registerInfix(token.MINUS, p.parseInfixExpression)
@@ -71,6 +74,7 @@ func NewParser(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.LT, p.parseInfixExpression)
 	p.registerInfix(token.GT, p.parseInfixExpression)
 	p.registerInfix(token.LPAREN, p.parseCallExpression)
+	p.registerInfix(token.LBRACKET, p.parseIndexExpression)
 
 	p.nextToken()
 	p.nextToken()
@@ -349,7 +353,7 @@ func (p *Parser) parseCallExpression(function ast.Expression) (ast.Expression, e
 	exp := &ast.CallExpression{Token: p.curToken, Function: function}
 
 	var err error
-	exp.Arguments, err = p.parseCallArguments()
+	exp.Arguments, err = p.parseExpressionList(token.RPAREN)
 	if err != nil {
 		return nil, err
 	}
@@ -357,12 +361,12 @@ func (p *Parser) parseCallExpression(function ast.Expression) (ast.Expression, e
 	return exp, nil
 }
 
-func (p *Parser) parseCallArguments() ([]ast.Expression, error) {
-	args := []ast.Expression{}
+func (p *Parser) parseExpressionList(end token.TokenType) ([]ast.Expression, error) {
+	list := []ast.Expression{}
 
-	if p.peekTokenIs(token.RPAREN) {
+	if p.peekTokenIs(end) {
 		p.nextToken()
-		return args, nil
+		return list, nil
 	}
 
 	p.nextToken()
@@ -372,7 +376,7 @@ func (p *Parser) parseCallArguments() ([]ast.Expression, error) {
 		return nil, err
 	}
 
-	args = append(args, exp)
+	list = append(list, exp)
 
 	for p.peekTokenIs(token.COMMA) {
 		p.nextToken()
@@ -383,14 +387,44 @@ func (p *Parser) parseCallArguments() ([]ast.Expression, error) {
 			return nil, err
 		}
 
-		args = append(args, exp)
+		list = append(list, exp)
 	}
 
-	if err = p.expectPeek(token.RPAREN); err != nil {
+	if err = p.expectPeek(end); err != nil {
 		return nil, err
 	}
 
-	return args, nil
+	return list, nil
+}
+
+func (p *Parser) parseArrayLiteral() (ast.Expression, error) {
+	array := &ast.ArrayLiteral{Token: p.curToken}
+
+	var err error
+	array.Elements, err = p.parseExpressionList(token.RBRACKET)
+	if err != nil {
+		return nil, err
+	}
+
+	return array, nil
+}
+
+func (p *Parser) parseIndexExpression(left ast.Expression) (ast.Expression, error) {
+	exp := &ast.IndexExpression{Token: p.curToken, Left: left}
+
+	p.nextToken()
+
+	var err error
+	exp.Index, err = p.parseExpression(LOWEST)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = p.expectPeek(token.RBRACKET); err != nil {
+		return nil, err
+	}
+
+	return exp, nil
 }
 
 func (p *Parser) parseIdentifier() (ast.Expression, error) {

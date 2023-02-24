@@ -51,6 +51,12 @@ func Eval(node ast.Node, env *object.Environment) (object.Object, error) {
 	case *ast.CallExpression:
 		return evalCallExpression(node, env)
 
+	case *ast.ArrayLiteral:
+		return evalArrayLiteral(node, env)
+
+	case *ast.IndexExpression:
+		return evalIndexExpression(node, env)
+
 	default:
 		return nil, errors.New("invalid syntax")
 	}
@@ -357,4 +363,47 @@ func applyFunction(obj object.Object, args []object.Object) (object.Object, erro
 	default:
 		return nil, fmt.Errorf("not a function: '%s'", obj.Type())
 	}
+}
+
+func evalArrayLiteral(al *ast.ArrayLiteral, env *object.Environment) (object.Object, error) {
+	elements, err := evalExpressions(al.Elements, env)
+	if err != nil {
+		return nil, err
+	}
+
+	return object.NewArray(elements), nil
+}
+
+func evalIndexExpression(ie *ast.IndexExpression, env *object.Environment) (object.Object, error) {
+	l, err := Eval(ie.Left, env)
+	if err != nil {
+		return nil, err
+	}
+
+	idx, err := Eval(ie.Index, env)
+	if err != nil {
+		return nil, err
+	}
+
+	switch l.Type() {
+	case object.ARRAY_OBJ:
+		if idx.Type() != object.INTEGER_OBJ {
+			return nil, fmt.Errorf("array indices must be integers, not '%s'", idx.Type())
+		}
+
+		return evalArrayIndexExpression(l, idx)
+	default:
+		return nil, fmt.Errorf("index operator not supported: '%s'", l.Type())
+	}
+}
+
+func evalArrayIndexExpression(array, index object.Object) (object.Object, error) {
+	arr := array.(*object.Array).Elements
+	idx := index.(*object.Integer).Value
+
+	if idx < 0 || idx >= int64(len(arr)) {
+		return nil, fmt.Errorf("array index out of range")
+	}
+
+	return arr[idx], nil
 }
