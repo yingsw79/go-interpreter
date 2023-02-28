@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go-interpreter/ast"
 	"go-interpreter/object"
+	"strings"
 )
 
 func Eval(node ast.Node, env *object.Environment) (object.Object, error) {
@@ -163,6 +164,8 @@ func evalBangOperatorExpression(obj object.Object) (object.Object, error) {
 		return object.NewBoolean(obj.Value == 0), nil
 	case *object.String:
 		return object.NewBoolean(obj.Value == ""), nil
+	case *object.Array:
+		return object.NewBoolean(len(obj.Elements) == 0), nil
 	case *object.Null:
 		return object.TRUE, nil
 	default:
@@ -201,8 +204,11 @@ func evalInfixExpression(ie *ast.InfixExpression, env *object.Environment) (obje
 		(r.Type() == object.INTEGER_OBJ || r.Type() == object.BOOLEAN_OBJ) {
 		return evalIntegerInfixExpression(ie.Operator, l, r)
 
-	} else if l.Type() == object.STRING_OBJ && r.Type() == object.STRING_OBJ {
+	} else if l.Type() == object.STRING_OBJ {
 		return evalStringInfixExpression(ie.Operator, l, r)
+
+	} else if l.Type() == object.ARRAY_OBJ {
+		return evalArrayInfixExpression(ie.Operator, l, r)
 	}
 
 	return nil, fmt.Errorf("'%s' not supported between '%s' and '%s'", ie.Operator, l.Type(), r.Type())
@@ -252,22 +258,63 @@ func objectToInteger(obj object.Object) int64 {
 }
 
 func evalStringInfixExpression(operator string, l, r object.Object) (object.Object, error) {
-	lv, rv := l.(*object.String).Value, r.(*object.String).Value
+	lv := l.(*object.String).Value
+
+	switch r.Type() {
+	case object.STRING_OBJ:
+		rv := r.(*object.String).Value
+		switch operator {
+		case "+":
+			return object.NewString(lv + rv), nil
+		case "<":
+			return object.NewBoolean(lv < rv), nil
+		case ">":
+			return object.NewBoolean(lv > rv), nil
+		case "==":
+			return object.NewBoolean(lv == rv), nil
+		case "!=":
+			return object.NewBoolean(lv != rv), nil
+		}
+
+	case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
+		if operator == "*" {
+			var b strings.Builder
+			for i := 0; i < int(objectToInteger(r)); i++ {
+				b.WriteString(lv)
+			}
+			return object.NewString(b.String()), nil
+		}
+	}
+
+	return nil, fmt.Errorf("'%s' not supported between '%s' and '%s'", operator, l.Type(), r.Type())
+}
+
+func evalArrayInfixExpression(operator string, l, r object.Object) (object.Object, error) {
+	arr := l.(*object.Array)
 
 	switch operator {
 	case "+":
-		return object.NewString(lv + rv), nil
-	case "<":
-		return object.NewBoolean(lv < rv), nil
-	case ">":
-		return object.NewBoolean(lv > rv), nil
-	case "==":
-		return object.NewBoolean(lv == rv), nil
-	case "!=":
-		return object.NewBoolean(lv != rv), nil
-	default:
-		return nil, fmt.Errorf("'%s' not supported between '%s' and '%s'", operator, l.Type(), r.Type())
+		newArr := object.NewArray(append([]object.Object(nil), arr.Elements...))
+
+		switch r := r.(type) {
+		case *object.Array:
+			newArr.Elements = append(newArr.Elements, r.Elements...)
+		default:
+			newArr.Elements = append(newArr.Elements, r)
+		}
+		return newArr, nil
+
+	case "*":
+		if r.Type() == object.INTEGER_OBJ || r.Type() == object.BOOLEAN_OBJ {
+			objs := []object.Object{}
+			for i := 0; i < int(objectToInteger(r)); i++ {
+				objs = append(objs, arr.Elements...)
+			}
+			return object.NewArray(objs), nil
+		}
 	}
+
+	return nil, fmt.Errorf("'%s' not supported between '%s' and '%s'", operator, l.Type(), r.Type())
 }
 
 func evalIfExpression(ie *ast.IfExpression, env *object.Environment) (object.Object, error) {
@@ -293,6 +340,8 @@ func isTruthy(obj object.Object) bool {
 		return obj.Value != 0
 	case *object.String:
 		return obj.Value != ""
+	case *object.Array:
+		return len(obj.Elements) != 0
 	case *object.Null:
 		return false
 	default:
@@ -380,7 +429,7 @@ func evalIndexExpression(ie *ast.IndexExpression, env *object.Environment) (obje
 		return nil, err
 	}
 
-	idx, err := Eval(ie.Index, env)
+	idx, err := Eval(ie.Indices, env)
 	if err != nil {
 		return nil, err
 	}

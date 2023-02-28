@@ -189,7 +189,7 @@ func (p *Parser) parseBlockStatement() (*ast.BlockStatement, error) {
 func (p *Parser) parseExpression(precedence int) (ast.Expression, error) {
 	prefix, ok := p.prefixParseFns[p.curToken.Type]
 	if !ok {
-		return nil, fmt.Errorf("no prefix parse function for %s found", p.curToken.Type)
+		return nil, fmt.Errorf("no prefix parse function for '%s' found", p.curToken.Type)
 	}
 
 	exp, err := prefix()
@@ -200,7 +200,7 @@ func (p *Parser) parseExpression(precedence int) (ast.Expression, error) {
 	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
 		infix, ok := p.infixParseFns[p.peekToken.Type]
 		if !ok {
-			return nil, fmt.Errorf("no infix parse function for %s found", p.peekToken.Type)
+			return nil, fmt.Errorf("no infix parse function for '%s' found", p.peekToken.Type)
 		}
 
 		p.nextToken()
@@ -353,7 +353,7 @@ func (p *Parser) parseCallExpression(function ast.Expression) (ast.Expression, e
 	exp := &ast.CallExpression{Token: p.curToken, Function: function}
 
 	var err error
-	exp.Arguments, err = p.parseExpressionList(token.RPAREN)
+	exp.Arguments, err = p.parseExpressionList(token.COMMA, token.RPAREN)
 	if err != nil {
 		return nil, err
 	}
@@ -361,7 +361,7 @@ func (p *Parser) parseCallExpression(function ast.Expression) (ast.Expression, e
 	return exp, nil
 }
 
-func (p *Parser) parseExpressionList(end token.TokenType) ([]ast.Expression, error) {
+func (p *Parser) parseExpressionList(sep, end token.TokenType) ([]ast.Expression, error) {
 	list := []ast.Expression{}
 
 	if p.peekTokenIs(end) {
@@ -378,8 +378,11 @@ func (p *Parser) parseExpressionList(end token.TokenType) ([]ast.Expression, err
 
 	list = append(list, exp)
 
-	for p.peekTokenIs(token.COMMA) {
-		p.nextToken()
+	for !p.peekTokenIs(end) {
+		if err = p.expectPeek(sep); err != nil {
+			return nil, err
+		}
+
 		p.nextToken()
 
 		exp, err = p.parseExpression(LOWEST)
@@ -390,9 +393,7 @@ func (p *Parser) parseExpressionList(end token.TokenType) ([]ast.Expression, err
 		list = append(list, exp)
 	}
 
-	if err = p.expectPeek(end); err != nil {
-		return nil, err
-	}
+	p.nextToken()
 
 	return list, nil
 }
@@ -401,7 +402,7 @@ func (p *Parser) parseArrayLiteral() (ast.Expression, error) {
 	array := &ast.ArrayLiteral{Token: p.curToken}
 
 	var err error
-	array.Elements, err = p.parseExpressionList(token.RBRACKET)
+	array.Elements, err = p.parseExpressionList(token.COMMA, token.RBRACKET)
 	if err != nil {
 		return nil, err
 	}
@@ -409,13 +410,14 @@ func (p *Parser) parseArrayLiteral() (ast.Expression, error) {
 	return array, nil
 }
 
+// TODO: SliceExpression
 func (p *Parser) parseIndexExpression(left ast.Expression) (ast.Expression, error) {
 	exp := &ast.IndexExpression{Token: p.curToken, Left: left}
 
 	p.nextToken()
 
 	var err error
-	exp.Index, err = p.parseExpression(LOWEST)
+	exp.Indices, err = p.parseExpression(LOWEST)
 	if err != nil {
 		return nil, err
 	}
@@ -438,7 +440,7 @@ func (p *Parser) parseStringLiteral() (ast.Expression, error) {
 func (p *Parser) parseIntegerLiteral() (ast.Expression, error) {
 	value, err := strconv.ParseInt(p.curToken.Literal, 0, 64)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse %q as integer", p.curToken.Literal)
+		return nil, fmt.Errorf("could not parse '%s' as integer", p.curToken.Literal)
 	}
 
 	return ast.NewIntegerLiteral(p.curToken, value), nil
@@ -466,7 +468,7 @@ func (p *Parser) expectPeek(tp token.TokenType) error {
 		return nil
 	}
 
-	return fmt.Errorf("expected next token to be %s, got %s instead", tp, p.peekToken.Type)
+	return fmt.Errorf("expected next token to be '%s', got '%s' instead", tp, p.peekToken.Type)
 }
 
 func (p *Parser) curPrecedence() int {

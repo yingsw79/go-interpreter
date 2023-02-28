@@ -734,7 +734,7 @@ func TestParsingIndexExpressions(t *testing.T) {
 		return
 	}
 
-	if !testInfixExpression(t, indexExp.Index, 1, "+", 1) {
+	if !testInfixExpression(t, indexExp.Indices, 1, "+", 1) {
 		return
 	}
 }

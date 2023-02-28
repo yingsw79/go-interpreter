@@ -102,7 +102,7 @@ func (es *ExpressionStatement) String() string {
 }
 
 type BlockStatement struct {
-	Token      *token.Token // the { token
+	Token      *token.Token // the '{' token
 	Statements []Statement
 }
 
@@ -309,9 +309,8 @@ func (al *ArrayLiteral) String() string {
 }
 
 type IndexExpression struct {
-	Token *token.Token // The '[' token
-	Left  Expression
-	Index Expression
+	Token         *token.Token // The '[' token
+	Left, Indices Expression
 }
 
 func (ie *IndexExpression) expressionNode()      {}
@@ -322,7 +321,7 @@ func (ie *IndexExpression) String() string {
 	b.WriteString("(")
 	b.WriteString(ie.Left.String())
 	b.WriteString("[")
-	b.WriteString(ie.Index.String())
+	b.WriteString(ie.Indices.String())
 	b.WriteString("])")
 
 	return b.String()
