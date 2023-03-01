@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"go-interpreter/ast"
 	"go-interpreter/object"
-	"strings"
 )
 
 func Eval(node ast.Node, env *object.Environment) (object.Object, error) {
@@ -146,39 +145,18 @@ func evalPrefixExpression(pe *ast.PrefixExpression, env *object.Environment) (ob
 		return nil, err
 	}
 
-	switch pe.Operator {
+	return evalUnaryOperator(pe.Operator, val)
+}
+
+func evalUnaryOperator(operator string, obj object.Object) (object.Object, error) {
+	switch operator {
 	case "!":
-		return evalBangOperatorExpression(val)
+		return bang(obj)
 	case "-":
-		return evalMinusPrefixOperatorExpression(val)
+		return neg(obj)
 	default:
-		return nil, fmt.Errorf("unknown operator: '%s'", pe.Operator)
+		return nil, fmt.Errorf("unknown operator: '%s'", operator)
 	}
-}
-
-func evalBangOperatorExpression(obj object.Object) (object.Object, error) {
-	switch obj := obj.(type) {
-	case *object.Boolean:
-		return object.NewBoolean(!obj.Value), nil
-	case *object.Integer:
-		return object.NewBoolean(obj.Value == 0), nil
-	case *object.String:
-		return object.NewBoolean(obj.Value == ""), nil
-	case *object.Array:
-		return object.NewBoolean(len(obj.Elements) == 0), nil
-	case *object.Null:
-		return object.TRUE, nil
-	default:
-		return object.FALSE, nil
-	}
-}
-
-func evalMinusPrefixOperatorExpression(obj object.Object) (object.Object, error) {
-	if obj.Type() == object.INTEGER_OBJ || obj.Type() == object.BOOLEAN_OBJ {
-		return object.NewInteger(-objectToInteger(obj)), nil
-	}
-
-	return nil, fmt.Errorf("bad operand type for unary -: '%s'", obj.Type())
 }
 
 func evalInfixExpression(ie *ast.InfixExpression, env *object.Environment) (object.Object, error) {
@@ -192,129 +170,30 @@ func evalInfixExpression(ie *ast.InfixExpression, env *object.Environment) (obje
 		return nil, err
 	}
 
-	if l.Type() == object.NULL_OBJ && r.Type() == object.NULL_OBJ {
-		switch ie.Operator {
-		case "==":
-			return object.TRUE, nil
-		case "!=":
-			return object.FALSE, nil
-		}
-
-	} else if (l.Type() == object.INTEGER_OBJ || l.Type() == object.BOOLEAN_OBJ) &&
-		(r.Type() == object.INTEGER_OBJ || r.Type() == object.BOOLEAN_OBJ) {
-		return evalIntegerInfixExpression(ie.Operator, l, r)
-
-	} else if l.Type() == object.STRING_OBJ {
-		return evalStringInfixExpression(ie.Operator, l, r)
-
-	} else if l.Type() == object.ARRAY_OBJ {
-		return evalArrayInfixExpression(ie.Operator, l, r)
-	}
-
-	return nil, fmt.Errorf("'%s' not supported between '%s' and '%s'", ie.Operator, l.Type(), r.Type())
+	return evalBinaryOperator(ie.Operator, l, r)
 }
 
-func evalIntegerInfixExpression(operator string, l, r object.Object) (object.Object, error) {
-	lv, rv := objectToInteger(l), objectToInteger(r)
-
+func evalBinaryOperator(operator string, l, r object.Object) (object.Object, error) {
 	switch operator {
 	case "+":
-		return object.NewInteger(lv + rv), nil
+		return add(l, r)
 	case "-":
-		return object.NewInteger(lv - rv), nil
+		return sub(l, r)
 	case "*":
-		return object.NewInteger(lv * rv), nil
+		return mul(l, r)
 	case "/":
-		if rv == 0 {
-			return nil, errors.New("division by zero")
-		}
-
-		return object.NewInteger(lv / rv), nil
+		return div(l, r)
 	case "<":
-		return object.NewBoolean(lv < rv), nil
+		return lt(l, r)
 	case ">":
-		return object.NewBoolean(lv > rv), nil
+		return gt(l, r)
 	case "==":
-		return object.NewBoolean(lv == rv), nil
+		return eq(l, r)
 	case "!=":
-		return object.NewBoolean(lv != rv), nil
+		return neq(l, r)
 	default:
-		return nil, fmt.Errorf("'%s' not supported between '%s' and '%s'", operator, l.Type(), r.Type())
+		return nil, fmt.Errorf("unknown operator: '%s'", operator)
 	}
-}
-
-func objectToInteger(obj object.Object) int64 {
-	switch obj := obj.(type) {
-	case *object.Integer:
-		return obj.Value
-	case *object.Boolean:
-		if obj.Value {
-			return 1
-		}
-		return 0
-	default:
-		return 0
-	}
-}
-
-func evalStringInfixExpression(operator string, l, r object.Object) (object.Object, error) {
-	lv := l.(*object.String).Value
-
-	switch r.Type() {
-	case object.STRING_OBJ:
-		rv := r.(*object.String).Value
-		switch operator {
-		case "+":
-			return object.NewString(lv + rv), nil
-		case "<":
-			return object.NewBoolean(lv < rv), nil
-		case ">":
-			return object.NewBoolean(lv > rv), nil
-		case "==":
-			return object.NewBoolean(lv == rv), nil
-		case "!=":
-			return object.NewBoolean(lv != rv), nil
-		}
-
-	case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
-		if operator == "*" {
-			var b strings.Builder
-			for i := 0; i < int(objectToInteger(r)); i++ {
-				b.WriteString(lv)
-			}
-			return object.NewString(b.String()), nil
-		}
-	}
-
-	return nil, fmt.Errorf("'%s' not supported between '%s' and '%s'", operator, l.Type(), r.Type())
-}
-
-func evalArrayInfixExpression(operator string, l, r object.Object) (object.Object, error) {
-	arr := l.(*object.Array)
-
-	switch operator {
-	case "+":
-		newArr := object.NewArray(append([]object.Object(nil), arr.Elements...))
-
-		switch r := r.(type) {
-		case *object.Array:
-			newArr.Elements = append(newArr.Elements, r.Elements...)
-		default:
-			newArr.Elements = append(newArr.Elements, r)
-		}
-		return newArr, nil
-
-	case "*":
-		if r.Type() == object.INTEGER_OBJ || r.Type() == object.BOOLEAN_OBJ {
-			objs := []object.Object{}
-			for i := 0; i < int(objectToInteger(r)); i++ {
-				objs = append(objs, arr.Elements...)
-			}
-			return object.NewArray(objs), nil
-		}
-	}
-
-	return nil, fmt.Errorf("'%s' not supported between '%s' and '%s'", operator, l.Type(), r.Type())
 }
 
 func evalIfExpression(ie *ast.IfExpression, env *object.Environment) (object.Object, error) {
@@ -330,23 +209,6 @@ func evalIfExpression(ie *ast.IfExpression, env *object.Environment) (object.Obj
 	}
 
 	return object.NULL, nil
-}
-
-func isTruthy(obj object.Object) bool {
-	switch obj := obj.(type) {
-	case *object.Boolean:
-		return obj.Value
-	case *object.Integer:
-		return obj.Value != 0
-	case *object.String:
-		return obj.Value != ""
-	case *object.Array:
-		return len(obj.Elements) != 0
-	case *object.Null:
-		return false
-	default:
-		return true
-	}
 }
 
 func evalFunctionLiteral(fl *ast.FunctionLiteral, env *object.Environment) (object.Object, error) {
