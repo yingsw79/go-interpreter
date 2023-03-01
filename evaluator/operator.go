@@ -7,6 +7,24 @@ import (
 	"strings"
 )
 
+var (
+	unaryOperatorFns = map[string]singleOperandFn{
+		"-": neg,
+		"!": bang,
+	}
+
+	binaryOperatorFns = map[string]doubleOperandFn{
+		"+":  add,
+		"-":  sub,
+		"*":  mul,
+		"/":  div,
+		"<":  lt,
+		">":  gt,
+		"==": eq,
+		"!=": neq,
+	}
+)
+
 // unary operator
 func neg(obj object.Object) (object.Object, error) {
 	switch obj.Type() {

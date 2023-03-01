@@ -8,6 +8,11 @@ import (
 	"sort"
 )
 
+type (
+	singleOperandFn func(object.Object) (object.Object, error)
+	doubleOperandFn func(object.Object, object.Object) (object.Object, error)
+)
+
 var builtins = map[string]*object.Builtin{
 	"len": {
 		Fn: func(args ...object.Object) (object.Object, error) {
@@ -102,39 +107,75 @@ var builtins = map[string]*object.Builtin{
 			}
 
 			if len(arr.Elements) > 1 {
-				t := arr.Elements[0].Type()
-
-				switch t {
-				case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
-					for _, o := range arr.Elements {
-						if o.Type() != object.INTEGER_OBJ && o.Type() != object.BOOLEAN_OBJ {
-							return nil, fmt.Errorf("'<' not supported between '%s' and '%s'", t, o.Type())
-						}
+				for _, o := range arr.Elements[1:] {
+					if _, err := lt(arr.Elements[0], o); err != nil {
+						return nil, err
 					}
-
-					sort.Slice(arr.Elements, func(i, j int) bool {
-						return objectToInteger(arr.Elements[i]) < objectToInteger(arr.Elements[j])
-					})
-
-				case object.STRING_OBJ:
-					for _, o := range arr.Elements {
-						if o.Type() != t {
-							return nil, fmt.Errorf("'<' not supported between '%s' and '%s'", t, o.Type())
-						}
-					}
-
-					sort.Slice(arr.Elements, func(i, j int) bool {
-						return arr.Elements[i].(*object.String).Value < arr.Elements[j].(*object.String).Value
-					})
-
-				default:
-					return nil, fmt.Errorf("'%s' is incomparable", t)
 				}
+
+				sort.SliceStable(arr.Elements, func(i, j int) bool {
+					res, _ := lt(arr.Elements[i], arr.Elements[j])
+					return res.(*object.Boolean).Value
+				})
 			}
 
 			return arr, nil
 		},
 	},
+	"sum": {
+		Fn: func(args ...object.Object) (object.Object, error) {
+			if len(args) == 0 || len(args) > 2 {
+				return nil, fmt.Errorf("wrong number of arguments: got=%d, want=1 or 2", len(args))
+			}
+
+			arr, err := checkIsArray("sum", args[0])
+			if err != nil {
+				return nil, err
+			}
+
+			var initializer object.Object
+			if len(args) == 2 {
+				initializer = args[1]
+			}
+
+			if len(arr.Elements) == 0 && initializer == nil {
+				return object.NewInteger(0), nil
+			}
+
+			res, err := reduce(add, arr.Elements, initializer)
+			if err != nil {
+				return nil, err
+			}
+
+			return res, nil
+		},
+	},
+}
+
+func reduce(fn doubleOperandFn, arr []object.Object, initializer object.Object) (res object.Object, err error) {
+	res = initializer
+
+	if res == nil {
+		if len(arr) == 0 {
+			return nil, fmt.Errorf("reduce() of empty sequence with no initial value")
+		}
+		res = arr[0]
+	} else if len(arr) == 0 {
+		return
+	} else {
+		res, err = fn(res, arr[0])
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	for _, o := range arr[1:] {
+		res, err = fn(res, o)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return
 }
 
 func checkArgsLen(got, want int) error {

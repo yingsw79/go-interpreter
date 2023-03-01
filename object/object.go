@@ -103,10 +103,10 @@ func (f *Function) Inspect() string {
 	return b.String()
 }
 
-type BuiltinFunction func(args ...Object) (Object, error)
+type BuiltinFn func(...Object) (Object, error)
 
 type Builtin struct {
-	Fn BuiltinFunction
+	Fn BuiltinFn
 }
 
 func (b *Builtin) Type() ObjectType { return BUILTIN_OBJ }

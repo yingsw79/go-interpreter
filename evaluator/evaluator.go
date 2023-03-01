@@ -149,14 +149,12 @@ func evalPrefixExpression(pe *ast.PrefixExpression, env *object.Environment) (ob
 }
 
 func evalUnaryOperator(operator string, obj object.Object) (object.Object, error) {
-	switch operator {
-	case "!":
-		return bang(obj)
-	case "-":
-		return neg(obj)
-	default:
+	fn, ok := unaryOperatorFns[operator]
+	if !ok {
 		return nil, fmt.Errorf("unknown operator: '%s'", operator)
 	}
+
+	return fn(obj)
 }
 
 func evalInfixExpression(ie *ast.InfixExpression, env *object.Environment) (object.Object, error) {
@@ -174,26 +172,12 @@ func evalInfixExpression(ie *ast.InfixExpression, env *object.Environment) (obje
 }
 
 func evalBinaryOperator(operator string, l, r object.Object) (object.Object, error) {
-	switch operator {
-	case "+":
-		return add(l, r)
-	case "-":
-		return sub(l, r)
-	case "*":
-		return mul(l, r)
-	case "/":
-		return div(l, r)
-	case "<":
-		return lt(l, r)
-	case ">":
-		return gt(l, r)
-	case "==":
-		return eq(l, r)
-	case "!=":
-		return neq(l, r)
-	default:
+	fn, ok := binaryOperatorFns[operator]
+	if !ok {
 		return nil, fmt.Errorf("unknown operator: '%s'", operator)
 	}
+
+	return fn(l, r)
 }
 
 func evalIfExpression(ie *ast.IfExpression, env *object.Environment) (object.Object, error) {
