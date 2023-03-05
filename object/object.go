@@ -15,6 +15,7 @@ const (
 	FUNCTION_OBJ     = "FUNCTION"
 	BUILTIN_OBJ      = "BUILTIN"
 	ARRAY_OBJ        = "ARRAY"
+	IDENT_OBJ        = "IDENT"
 	NULL_OBJ         = "NULL"
 )
 
@@ -30,6 +31,19 @@ type Object interface {
 	Type() ObjectType
 	Inspect() string
 }
+
+type Identifier struct {
+	Name  string
+	Value Object
+	*Environment
+}
+
+func NewIdentifier(name string, v Object, env *Environment) *Identifier {
+	return &Identifier{name, v, env}
+}
+
+func (i *Identifier) Type() ObjectType { return IDENT_OBJ }
+func (i *Identifier) Inspect() string  { return i.Value.Inspect() }
 
 type Integer struct {
 	Value int64

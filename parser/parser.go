@@ -11,6 +11,7 @@ import (
 const (
 	_ int = iota
 	LOWEST
+	ASSIGN      // =
 	EQUALS      // ==
 	LESSGREATER // > or <
 	SUM         // +
@@ -21,6 +22,7 @@ const (
 )
 
 var precedences = map[token.TokenType]int{
+	token.ASSIGN:   ASSIGN,
 	token.EQ:       EQUALS,
 	token.NOT_EQ:   EQUALS,
 	token.LT:       LESSGREATER,
@@ -75,6 +77,7 @@ func NewParser(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.GT, p.parseInfixExpression)
 	p.registerInfix(token.LPAREN, p.parseCallExpression)
 	p.registerInfix(token.LBRACKET, p.parseIndexExpression)
+	p.registerInfix(token.ASSIGN, p.parseInfixExpression)
 
 	p.nextToken()
 	p.nextToken()
@@ -115,7 +118,7 @@ func (p *Parser) parseLetStatement() (*ast.LetStatement, error) {
 		return nil, err
 	}
 
-	stmt.Name = ast.NewIdentifier(p.curToken, p.curToken.Literal)
+	stmt.Name = p.newIdentifier()
 
 	if err = p.expectPeek(token.ASSIGN); err != nil {
 		return nil, err
@@ -334,12 +337,12 @@ func (p *Parser) parseFunctionParameters() ([]*ast.Identifier, error) {
 	}
 
 	p.nextToken()
-	identifiers = append(identifiers, ast.NewIdentifier(p.curToken, p.curToken.Literal))
+	identifiers = append(identifiers, p.newIdentifier())
 
 	for p.peekTokenIs(token.COMMA) {
 		p.nextToken()
 		p.nextToken()
-		identifiers = append(identifiers, ast.NewIdentifier(p.curToken, p.curToken.Literal))
+		identifiers = append(identifiers, p.newIdentifier())
 	}
 
 	if err := p.expectPeek(token.RPAREN); err != nil {
@@ -429,8 +432,13 @@ func (p *Parser) parseIndexExpression(left ast.Expression) (ast.Expression, erro
 	return exp, nil
 }
 
+// TODO a, b = c, d = 1, 2
 func (p *Parser) parseIdentifier() (ast.Expression, error) {
-	return ast.NewIdentifier(p.curToken, p.curToken.Literal), nil
+	return p.newIdentifier(), nil
+}
+
+func (p *Parser) newIdentifier() *ast.Identifier {
+	return ast.NewIdentifier(p.curToken, p.curToken.Literal, p.peekTokenIs(token.ASSIGN))
 }
 
 func (p *Parser) parseStringLiteral() (ast.Expression, error) {

@@ -96,12 +96,17 @@ func evalExpressionStatement(es *ast.ExpressionStatement, env *object.Environmen
 }
 
 func evalLetStatement(ls *ast.LetStatement, env *object.Environment) (object.Object, error) {
+	name := ls.Name.Value
+	if env.IsExist(name) {
+		return nil, fmt.Errorf("identifier '%s' has already been declared", name)
+	}
+
 	val, err := Eval(ls.Value, env)
 	if err != nil {
 		return nil, err
 	}
 
-	env.Set(ls.Name.Value, val)
+	env.Set(name, val)
 
 	return nil, nil
 }
@@ -116,15 +121,19 @@ func evalReturnStatement(rs *ast.ReturnStatement, env *object.Environment) (obje
 }
 
 func evalIdentifier(ident *ast.Identifier, env *object.Environment) (object.Object, error) {
-	if val, ok := env.Get(ident.Value); ok {
+	name := ident.Value
+	if val, identEnv := env.Get(name); val != nil {
+		if ident.IsAssign {
+			return object.NewIdentifier(name, val, identEnv), nil
+		}
 		return val, nil
 	}
 
-	if builtin, ok := builtins[ident.Value]; ok {
+	if builtin, ok := builtins[name]; ok {
 		return builtin, nil
 	}
 
-	return nil, fmt.Errorf("name '%s' is not defined", ident.Value)
+	return nil, fmt.Errorf("name '%s' is not defined", name)
 }
 
 func evalStringLiteral(s *ast.StringLiteral) (object.Object, error) {
@@ -238,6 +247,8 @@ func extendFunctionEnv(fn *object.Function, args []object.Object) *object.Enviro
 }
 
 func applyFunction(obj object.Object, args []object.Object) (object.Object, error) {
+	// obj = unwrapIdentValue(obj)
+
 	switch fn := obj.(type) {
 	case *object.Function:
 		extendEnv := extendFunctionEnv(fn, args)
@@ -246,11 +257,7 @@ func applyFunction(obj object.Object, args []object.Object) (object.Object, erro
 			return nil, err
 		}
 
-		if returnValue, ok := res.(*object.ReturnValue); ok {
-			res = returnValue.Value
-		}
-
-		return res, nil
+		return unwrapReturnValue(res), nil
 
 	case *object.Builtin:
 		return fn.Fn(args...)
@@ -302,3 +309,17 @@ func evalArrayIndexExpression(array, index object.Object) (object.Object, error)
 
 	return arr[idx], nil
 }
+
+func unwrapReturnValue(obj object.Object) object.Object {
+	if returnValue, ok := obj.(*object.ReturnValue); ok {
+		return returnValue.Value
+	}
+	return obj
+}
+
+// func unwrapIdentValue(obj object.Object) object.Object {
+// 	if ident, ok := obj.(*object.Identifier); ok {
+// 		return ident.Value
+// 	}
+// 	return obj
+// }

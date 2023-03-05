@@ -22,6 +22,7 @@ var (
 		">":  gt,
 		"==": eq,
 		"!=": neq,
+		"=":  assign,
 	}
 )
 
@@ -216,6 +217,17 @@ func div(l, r object.Object) (object.Object, error) {
 	}
 
 	return nil, fmt.Errorf("'/' not supported between '%s' and '%s'", l.Type(), r.Type())
+}
+
+func assign(l, r object.Object) (object.Object, error) {
+	ident, ok := l.(*object.Identifier)
+	if !ok {
+		return nil, errors.New("cannot assign to literal")
+	}
+
+	ident.Set(ident.Name, r)
+
+	return nil, nil
 }
 
 func objectToInteger(obj object.Object) int64 {

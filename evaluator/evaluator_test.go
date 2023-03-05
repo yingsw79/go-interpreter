@@ -7,11 +7,13 @@ import (
 	"testing"
 )
 
+type test struct {
+	input    string
+	expected any
+}
+
 func TestEvalIntegerExpression(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected int64
-	}{
+	tests := []test{
 		{"5", 5},
 		{"10", 10},
 		{"-5", -5},
@@ -29,21 +31,11 @@ func TestEvalIntegerExpression(t *testing.T) {
 		{"(5 + 10 * 2 + 15 / 3) * 2 + -10", 50},
 	}
 
-	for _, tt := range tests {
-		evaluated, err := testEval(tt.input)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		testIntegerObject(t, evaluated, tt.expected)
-	}
+	autoTest(t, tests)
 }
 
 func TestEvalBooleanExpression(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected bool
-	}{
+	tests := []test{
 		{"true", true},
 		{"false", false},
 		{"true < 2", true},
@@ -66,44 +58,23 @@ func TestEvalBooleanExpression(t *testing.T) {
 		{"(1 > 2) == false", true},
 	}
 
-	for _, tt := range tests {
-		evaluated, err := testEval(tt.input)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		testBooleanObject(t, evaluated, tt.expected)
-	}
+	autoTest(t, tests)
 }
 
 func TestStringLiteral(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-	}{
+	tests := []test{
 		{`"Hello World!"`, "Hello World!"},
 		{`"Hello" + " " + "World!"`, "Hello World!"},
 		{`"12" * 0`, ""},
 		{`"12" * 1`, "12"},
 		{`"12" * 10`, "12121212121212121212"},
-		{`sum(["1", "23", "456"])`, "123456"},
 	}
 
-	for _, tt := range tests {
-		evaluated, err := testEval(tt.input)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		testStringObject(t, evaluated, tt.expected)
-	}
+	autoTest(t, tests)
 }
 
 func TestBangOperator(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected bool
-	}{
+	tests := []test{
 		{"!true", false},
 		{"!false", true},
 		{"!5", false},
@@ -112,21 +83,11 @@ func TestBangOperator(t *testing.T) {
 		{"!!5", true},
 	}
 
-	for _, tt := range tests {
-		evaluated, err := testEval(tt.input)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		testBooleanObject(t, evaluated, tt.expected)
-	}
+	autoTest(t, tests)
 }
 
 func TestIfElseExpressions(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected interface{}
-	}{
+	tests := []test{
 		{"if (true) { 10 }", 10},
 		{"if (false) { 10 }", nil},
 		{"if (1) { 10 }", 10},
@@ -136,26 +97,11 @@ func TestIfElseExpressions(t *testing.T) {
 		{"if (1 < 2) { 10 } else { 20 }", 10},
 	}
 
-	for _, tt := range tests {
-		evaluated, err := testEval(tt.input)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		integer, ok := tt.expected.(int)
-		if ok {
-			testIntegerObject(t, evaluated, int64(integer))
-		} else {
-			testNullObject(t, evaluated)
-		}
-	}
+	autoTest(t, tests)
 }
 
 func TestReturnStatements(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected int64
-	}{
+	tests := []test{
 		{"return 10;", 10},
 		{"return 10; 9;", 10},
 		{"return 2 * 5; 9;", 10},
@@ -191,35 +137,20 @@ f(10);`, 20,
 		},
 	}
 
-	for _, tt := range tests {
-		evaluated, err := testEval(tt.input)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		testIntegerObject(t, evaluated, tt.expected)
-	}
+	autoTest(t, tests)
 }
 
 func TestLetStatements(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected int64
-	}{
+	tests := []test{
+		{"let a = 5;", nil},
 		{"let a = 5; a;", 5},
 		{"let a = 5 * 5; a;", 25},
 		{"let a = 5; let b = a; b;", 5},
 		{"let a = 5; let b = a; let c = a + b + 5; c;", 15},
+		{"let a = 1; let a = 2;", "identifier 'a' has already been declared"},
 	}
 
-	for _, tt := range tests {
-		evaluated, err := testEval(tt.input)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		testIntegerObject(t, evaluated, tt.expected)
-	}
+	autoTest(t, tests)
 }
 
 func TestFunctionObject(t *testing.T) {
@@ -251,10 +182,7 @@ func TestFunctionObject(t *testing.T) {
 }
 
 func TestFunctionApplication(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected int64
-	}{
+	tests := []test{
 		{"let identity = fn(x) { x; }; identity(5);", 5},
 		{"let identity = fn(x) { return x; }; identity(5);", 5},
 		{"let double = fn(x) { x * 2; }; double(5);", 10},
@@ -262,6 +190,45 @@ func TestFunctionApplication(t *testing.T) {
 		{"let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20},
 		{"let fib = fn(n) { if (n < 2) { return n } return fib(n - 1) + fib(n - 2)}; fib(10)", 55},
 		{"fn(x) { x; }(5)", 5},
+	}
+
+	autoTest(t, tests)
+}
+
+func TestEnvironment(t *testing.T) {
+	tests := []test{
+		{"let a = 1; a = 2; a", 2},
+		{"let a = 1; fn() { fn() { a = 2 }() }(); a", 2},
+		{`
+		let a = 10
+		let b = 10
+		let c = 10
+		let f = fn(a) {
+			let b = 20
+		
+			return a + b + c
+		}
+		f(20) + a + b;`, 70},
+	}
+
+	autoTest(t, tests)
+}
+
+func TestClosures(t *testing.T) {
+	tests := []test{
+		{`let newAdder = fn(x) { return fn(y) { x + y }; }; let addTwo = newAdder(2); addTwo(2);`, 4},
+	}
+
+	autoTest(t, tests)
+}
+
+func TestBuiltinFunctions(t *testing.T) {
+	tests := []test{
+		{`let a = []; push(a, 1, 2, 3); a`, []any{1, 2, 3}},
+		{`let a = []; let b = push(a, 1, 2, 3); b`, []any{1, 2, 3}},
+		{`let a = [1, 2, 3, 4]; pop(a); a`, []any{1, 2, 3}},
+		{`let a = [1, 2, 3, 4]; reverse(a); a`, []any{4, 3, 2, 1}},
+		{`let a = [1, 3, 2, 4, 6, 5, 7]; sort(a); a`, []any{1, 2, 3, 4, 5, 6, 7}},
 		{`len("")`, 0},
 		{`len([])`, 0},
 		{`len("four")`, 4},
@@ -271,71 +238,30 @@ func TestFunctionApplication(t *testing.T) {
 		{`sum([], 2)`, 2},
 		{`sum([1, 2, 3, 4, 5, 6, 7])`, 28},
 		{`sum([1, 2, 3, 4, 5, 6, 7], 8)`, 36},
+		{`sum(["1", "23", "456"])`, "123456"},
 	}
 
-	for _, tt := range tests {
-		evaluated, err := testEval(tt.input)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		testIntegerObject(t, evaluated, tt.expected)
-	}
-}
-
-func TestClosures(t *testing.T) {
-	input := `
-let newAdder = fn(x) {
-  return fn(y) { x + y };
-};
-
-let addTwo = newAdder(2);
-addTwo(2);`
-
-	evaluated, err := testEval(input)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	testIntegerObject(t, evaluated, 4)
+	autoTest(t, tests)
 }
 
 func TestArrayLiterals(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected []interface{}
-	}{
-		{"[1, 2 * 2, 3 + 3]", []interface{}{1, 4, 6}},
-		{`[1, 2, false, "hello", [3, 4, true]]`, []interface{}{1, 2, false, "hello", []interface{}{3, 4, true}}},
-		{`[1, 2, [3, 4, [5, 6, 7]]]`, []interface{}{1, 2, []interface{}{3, 4, []interface{}{5, 6, 7}}}},
-		{"[1, 2, 3] + [4, 5, 6]", []interface{}{1, 2, 3, 4, 5, 6}},
-		{"[1, 2, 3] + 4", []interface{}{1, 2, 3, 4}},
-		{`[1, 2, 3] + "hello"`, []interface{}{1, 2, 3, "hello"}},
-		{`4 + [1, 2, 3]`, []interface{}{4, 1, 2, 3}},
-		{`[1, 2] * 0`, []interface{}{}},
-		{`[1, 2] * 4`, []interface{}{1, 2, 1, 2, 1, 2, 1, 2}},
-		{`let a = []; push(a, 1, 2, 3); a`, []interface{}{1, 2, 3}},
-		{`let a = []; let b = push(a, 1, 2, 3); b`, []interface{}{1, 2, 3}},
-		{`let a = [1, 2, 3, 4]; pop(a); a`, []interface{}{1, 2, 3}},
-		{`let a = [1, 2, 3, 4]; reverse(a); a`, []interface{}{4, 3, 2, 1}},
-		{`let a = [1, 3, 2, 4, 6, 5, 7]; sort(a); a`, []interface{}{1, 2, 3, 4, 5, 6, 7}},
+	tests := []test{
+		{"[1, 2 * 2, 3 + 3]", []any{1, 4, 6}},
+		{`[1, 2, false, "hello", [3, 4, true]]`, []any{1, 2, false, "hello", []any{3, 4, true}}},
+		{`[1, 2, [3, 4, [5, 6, 7]]]`, []any{1, 2, []any{3, 4, []any{5, 6, 7}}}},
+		{"[1, 2, 3] + [4, 5, 6]", []any{1, 2, 3, 4, 5, 6}},
+		{"[1, 2, 3] + 4", []any{1, 2, 3, 4}},
+		{`[1, 2, 3] + "hello"`, []any{1, 2, 3, "hello"}},
+		{`4 + [1, 2, 3]`, []any{4, 1, 2, 3}},
+		{`[1, 2] * 0`, []any{}},
+		{`[1, 2] * 4`, []any{1, 2, 1, 2, 1, 2, 1, 2}},
 	}
 
-	for _, tt := range tests {
-		evaluated, err := testEval(tt.input)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		testArrayObject(t, evaluated, tt.expected)
-	}
+	autoTest(t, tests)
 }
 
 func TestArrayIndexExpressions(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected int64
-	}{
+	tests := []test{
 		{"[1, 2, 3][0]", 1},
 		{"[1, 2, 3][1]", 2},
 		{"[1, 2, 3][2]", 3},
@@ -346,13 +272,19 @@ func TestArrayIndexExpressions(t *testing.T) {
 		{"let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]", 2},
 	}
 
-	for _, tt := range tests {
-		evaluated, err := testEval(tt.input)
-		if err != nil {
-			t.Fatal(err)
-		}
+	autoTest(t, tests)
+}
 
-		testIntegerObject(t, evaluated, tt.expected)
+func autoTest(t *testing.T, tests []test) {
+	for _, tt := range tests {
+		res, err := testEval(tt.input)
+		if err != nil {
+			testObject(t, object.NewString(err.Error()), tt.expected)
+		} else if res != nil {
+			testObject(t, res, tt.expected)
+		} else if tt.expected != nil {
+			t.Error("missing return value")
+		}
 	}
 }
 
@@ -362,6 +294,25 @@ func testEval(input string) (object.Object, error) {
 	env := object.NewEnvironment()
 
 	return Eval(program, env)
+}
+
+func testObject(t *testing.T, obj object.Object, expected any) {
+	switch e := expected.(type) {
+	case int:
+		testIntegerObject(t, obj, int64(e))
+	case int64:
+		testIntegerObject(t, obj, e)
+	case string:
+		testStringObject(t, obj, e)
+	case bool:
+		testBooleanObject(t, obj, e)
+	case []any:
+		testArrayObject(t, obj, e)
+	case nil:
+		testNullObject(t, obj)
+	default:
+		t.Errorf("missing type")
+	}
 }
 
 func testIntegerObject(t *testing.T, obj object.Object, expected int64) {
@@ -400,7 +351,7 @@ func testStringObject(t *testing.T, obj object.Object, expected string) {
 	}
 }
 
-func testArrayObject(t *testing.T, obj object.Object, expected []interface{}) {
+func testArrayObject(t *testing.T, obj object.Object, expected []any) {
 	res, ok := obj.(*object.Array)
 	if !ok {
 		t.Fatalf("object is not Array. got=%T (%v)", obj, obj)
@@ -413,22 +364,7 @@ func testArrayObject(t *testing.T, obj object.Object, expected []interface{}) {
 	}
 
 	for i, o := range res.Elements {
-		switch e := expected[i].(type) {
-		case int:
-			testIntegerObject(t, o, int64(e))
-		case int64:
-			testIntegerObject(t, o, e)
-		case string:
-			testStringObject(t, o, e)
-		case bool:
-			testBooleanObject(t, o, e)
-		case []interface{}:
-			testArrayObject(t, o, e)
-		case nil:
-			testNullObject(t, o)
-		default:
-			t.Errorf("missing type")
-		}
+		testObject(t, o, expected[i])
 	}
 }
 

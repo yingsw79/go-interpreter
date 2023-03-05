@@ -123,12 +123,13 @@ func (bs *BlockStatement) String() string {
 
 // Expressions
 type Identifier struct {
-	Token *token.Token // the token.IDENT token
-	Value string
+	Token    *token.Token // the token.IDENT token
+	Value    string
+	IsAssign bool
 }
 
-func NewIdentifier(tok *token.Token, v string) *Identifier {
-	return &Identifier{Token: tok, Value: v}
+func NewIdentifier(tok *token.Token, v string, ia bool) *Identifier {
+	return &Identifier{Token: tok, Value: v, IsAssign: ia}
 }
 
 func (i *Identifier) expressionNode()      {}

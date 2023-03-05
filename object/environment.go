@@ -13,12 +13,18 @@ func NewEnclosedEnvironment(outer *Environment) *Environment {
 	return &Environment{store: map[string]Object{}, outer: outer}
 }
 
-func (e *Environment) Get(name string) (Object, bool) {
-	obj, ok := e.store[name]
-	if !ok && e.outer != nil {
-		obj, ok = e.outer.Get(name)
+func (e *Environment) Get(name string) (Object, *Environment) {
+	if v, ok := e.store[name]; ok {
+		return v, e
+	} else if e.outer != nil {
+		return e.outer.Get(name)
 	}
-	return obj, ok
+	return nil, nil
+}
+
+func (e *Environment) IsExist(name string) bool {
+	_, ok := e.store[name]
+	return ok
 }
 
 func (e *Environment) Set(name string, val Object) {
