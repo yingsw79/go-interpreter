@@ -33,18 +33,15 @@ func (p *Program) TokenLiteral() string {
 
 func (p *Program) String() string {
 	var b strings.Builder
-
 	for _, s := range p.Statements {
 		b.WriteString(s.String())
 	}
-
 	return b.String()
 }
 
 // Statements
 type LetStatement struct {
 	Token *token.Token // the token.LET token
-	Name  *Identifier
 	Value Expression
 }
 
@@ -52,17 +49,9 @@ func (ls *LetStatement) statementNode()       {}
 func (ls *LetStatement) TokenLiteral() string { return ls.Token.Literal }
 func (ls *LetStatement) String() string {
 	var b strings.Builder
-
 	b.WriteString(ls.TokenLiteral() + " ")
-	b.WriteString(ls.Name.String())
-	b.WriteString(" = ")
-
-	if ls.Value != nil {
-		b.WriteString(ls.Value.String())
-	}
-
+	b.WriteString(ls.Value.String())
 	b.WriteString(";")
-
 	return b.String()
 }
 
@@ -75,15 +64,11 @@ func (rs *ReturnStatement) statementNode()       {}
 func (rs *ReturnStatement) TokenLiteral() string { return rs.Token.Literal }
 func (rs *ReturnStatement) String() string {
 	var b strings.Builder
-
 	b.WriteString(rs.TokenLiteral() + " ")
-
 	if rs.ReturnValue != nil {
 		b.WriteString(rs.ReturnValue.String())
 	}
-
 	b.WriteString(";")
-
 	return b.String()
 }
 
@@ -110,26 +95,22 @@ func (bs *BlockStatement) statementNode()       {}
 func (bs *BlockStatement) TokenLiteral() string { return bs.Token.Literal }
 func (bs *BlockStatement) String() string {
 	var b strings.Builder
-
 	stmts := []string{}
 	for _, stmt := range bs.Statements {
 		stmts = append(stmts, stmt.String())
 	}
-
 	b.WriteString(strings.Join(stmts, "\n"))
-
 	return b.String()
 }
 
 // Expressions
 type Identifier struct {
-	Token    *token.Token // the token.IDENT token
-	Value    string
-	IsAssign bool
+	Token *token.Token // the token.IDENT token
+	Value string
 }
 
-func NewIdentifier(tok *token.Token, v string, ia bool) *Identifier {
-	return &Identifier{Token: tok, Value: v, IsAssign: ia}
+func NewIdentifier(tok *token.Token, v string) *Identifier {
+	return &Identifier{Token: tok, Value: v}
 }
 
 func (i *Identifier) expressionNode()      {}
@@ -185,12 +166,10 @@ func (pe *PrefixExpression) expressionNode()      {}
 func (pe *PrefixExpression) TokenLiteral() string { return pe.Token.Literal }
 func (pe *PrefixExpression) String() string {
 	var b strings.Builder
-
 	b.WriteString("(")
 	b.WriteString(pe.Operator)
 	b.WriteString(pe.Right.String())
 	b.WriteString(")")
-
 	return b.String()
 }
 
@@ -204,13 +183,11 @@ func (ie *InfixExpression) expressionNode()      {}
 func (ie *InfixExpression) TokenLiteral() string { return ie.Token.Literal }
 func (ie *InfixExpression) String() string {
 	var b strings.Builder
-
 	b.WriteString("(")
 	b.WriteString(ie.Left.String())
 	b.WriteString(" " + ie.Operator + " ")
 	b.WriteString(ie.Right.String())
 	b.WriteString(")")
-
 	return b.String()
 }
 
@@ -224,17 +201,14 @@ func (ie *IfExpression) expressionNode()      {}
 func (ie *IfExpression) TokenLiteral() string { return ie.Token.Literal }
 func (ie *IfExpression) String() string {
 	var b strings.Builder
-
 	b.WriteString("if")
 	b.WriteString(ie.Condition.String())
 	b.WriteString(" ")
 	b.WriteString(ie.Consequence.String())
-
 	if ie.Alternative != nil {
 		b.WriteString("else ")
 		b.WriteString(ie.Alternative.String())
 	}
-
 	return b.String()
 }
 
@@ -248,18 +222,15 @@ func (fl *FunctionLiteral) expressionNode()      {}
 func (fl *FunctionLiteral) TokenLiteral() string { return fl.Token.Literal }
 func (fl *FunctionLiteral) String() string {
 	var b strings.Builder
-
 	params := []string{}
 	for _, p := range fl.Parameters {
 		params = append(params, p.String())
 	}
-
 	b.WriteString(fl.TokenLiteral())
 	b.WriteString("(")
 	b.WriteString(strings.Join(params, ", "))
 	b.WriteString(") ")
 	b.WriteString(fl.Body.String())
-
 	return b.String()
 }
 
@@ -273,17 +244,14 @@ func (ce *CallExpression) expressionNode()      {}
 func (ce *CallExpression) TokenLiteral() string { return ce.Token.Literal }
 func (ce *CallExpression) String() string {
 	var b strings.Builder
-
 	args := []string{}
 	for _, a := range ce.Arguments {
 		args = append(args, a.String())
 	}
-
 	b.WriteString(ce.Function.String())
 	b.WriteString("(")
 	b.WriteString(strings.Join(args, ", "))
 	b.WriteString(")")
-
 	return b.String()
 }
 
@@ -296,16 +264,13 @@ func (al *ArrayLiteral) expressionNode()      {}
 func (al *ArrayLiteral) TokenLiteral() string { return al.Token.Literal }
 func (al *ArrayLiteral) String() string {
 	var b strings.Builder
-
 	elements := []string{}
 	for _, el := range al.Elements {
 		elements = append(elements, el.String())
 	}
-
 	b.WriteString("[")
 	b.WriteString(strings.Join(elements, ", "))
 	b.WriteString("]")
-
 	return b.String()
 }
 
@@ -318,12 +283,64 @@ func (ie *IndexExpression) expressionNode()      {}
 func (ie *IndexExpression) TokenLiteral() string { return ie.Token.Literal }
 func (ie *IndexExpression) String() string {
 	var b strings.Builder
-
 	b.WriteString("(")
 	b.WriteString(ie.Left.String())
 	b.WriteString("[")
 	b.WriteString(ie.Indices.String())
 	b.WriteString("])")
+	return b.String()
+}
 
+type AssignExpression struct {
+	Token       *token.Token // The '=' token
+	Left, Right Expression
+}
+
+func (ae *AssignExpression) expressionNode()      {}
+func (ae *AssignExpression) TokenLiteral() string { return ae.Token.Literal }
+func (ae *AssignExpression) String() string {
+	var b strings.Builder
+	b.WriteString("(")
+	b.WriteString(ae.Left.String())
+	b.WriteString(" = ")
+	b.WriteString(ae.Right.String())
+	b.WriteString(")")
+	return b.String()
+}
+
+type ShortCircuitExpression struct {
+	Token       *token.Token
+	Left, Right Expression
+	Operator    string
+}
+
+func (sc *ShortCircuitExpression) expressionNode()      {}
+func (sc *ShortCircuitExpression) TokenLiteral() string { return sc.Token.Literal }
+func (sc *ShortCircuitExpression) String() string {
+	var b strings.Builder
+	b.WriteString("(")
+	b.WriteString(sc.Left.String())
+	b.WriteString(" " + sc.Operator + " ")
+	b.WriteString(sc.Right.String())
+	b.WriteString(")")
+	return b.String()
+}
+
+type ExpressionList struct {
+	Token    *token.Token
+	Elements []Expression
+}
+
+func (el *ExpressionList) expressionNode()      {}
+func (el *ExpressionList) TokenLiteral() string { return el.Token.Literal }
+func (el *ExpressionList) String() string {
+	var b strings.Builder
+	elements := []string{}
+	for _, el := range el.Elements {
+		elements = append(elements, el.String())
+	}
+	b.WriteString("(")
+	b.WriteString(strings.Join(elements, ", "))
+	b.WriteString(")")
 	return b.String()
 }

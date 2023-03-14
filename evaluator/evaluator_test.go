@@ -73,7 +73,7 @@ func TestStringLiteral(t *testing.T) {
 	autoTest(t, tests)
 }
 
-func TestBangOperator(t *testing.T) {
+func TestPrefixOperator(t *testing.T) {
 	tests := []test{
 		{"!true", false},
 		{"!false", true},
@@ -81,6 +81,30 @@ func TestBangOperator(t *testing.T) {
 		{"!!true", true},
 		{"!!false", false},
 		{"!!5", true},
+		{"!!5", true},
+		{"~0", -1},
+		{"~-1", 0},
+		{"~65535", -65536},
+	}
+
+	autoTest(t, tests)
+}
+
+func TestInfixOperator(t *testing.T) {
+	tests := []test{
+		{"2 >= 2", true},
+		{"1 >= 2", false},
+		{"1 <= 1", true},
+		{`"ab" < "abc"`, true},
+		{"123124 % 13", 1},
+		{"234 >> 5 & 1", 1},
+		{"1 << 10", 1024},
+		{"123 | 321", 379},
+		{"0 && 2", 0},
+		{"0 || 2", 2},
+		{"0 && 1 || 0 && 2", 0},
+		{"let a = b = [1, 1, 1]; a[0] = 2; b", []any{2, 1, 1}},
+		{"let a = [[1, 2], [3, 4]]; a[0][0] = 5; a[0]", []any{5, 2}},
 	}
 
 	autoTest(t, tests)
@@ -142,12 +166,14 @@ f(10);`, 20,
 
 func TestLetStatements(t *testing.T) {
 	tests := []test{
+		{"let a; a", nil},
 		{"let a = 5;", nil},
 		{"let a = 5; a;", 5},
 		{"let a = 5 * 5; a;", 25},
 		{"let a = 5; let b = a; b;", 5},
 		{"let a = 5; let b = a; let c = a + b + 5; c;", 15},
-		{"let a = 1; let a = 2;", "identifier 'a' has already been declared"},
+		{"let a = 1; let b, a = 2, 2;", "identifier 'a' has already been declared"},
+		{"let a, b, c, d = 1, 2, 3, 4; [a, b, c, d]", []any{1, 2, 3, 4}},
 	}
 
 	autoTest(t, tests)
@@ -183,12 +209,12 @@ func TestFunctionObject(t *testing.T) {
 
 func TestFunctionApplication(t *testing.T) {
 	tests := []test{
-		{"let identity = fn(x) { x; }; identity(5);", 5},
-		{"let identity = fn(x) { return x; }; identity(5);", 5},
-		{"let double = fn(x) { x * 2; }; double(5);", 10},
-		{"let add = fn(x, y) { x + y; }; add(5, 5);", 10},
-		{"let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20},
-		{"let fib = fn(n) { if (n < 2) { return n } return fib(n - 1) + fib(n - 2)}; fib(10)", 55},
+		{"let f = fn(x) { x; }; f(5);", 5},
+		{"let f = fn(x) { return x; }; f(5);", 5},
+		{"let f = fn(x) { x * 2; }; f(5);", 10},
+		{"let f = fn(x, y) { x + y; }; f(5, 5);", 10},
+		{"let f = fn(x, y) { x + y; }; f(5 + 5, f(5, 5));", 20},
+		{"let f = fn(n) { if (n < 2) { return n } return f(n - 1) + f(n - 2)}; f(10)", 55},
 		{"fn(x) { x; }(5)", 5},
 	}
 
@@ -224,8 +250,8 @@ func TestClosures(t *testing.T) {
 
 func TestBuiltinFunctions(t *testing.T) {
 	tests := []test{
-		{`let a = []; push(a, 1, 2, 3); a`, []any{1, 2, 3}},
-		{`let a = []; let b = push(a, 1, 2, 3); b`, []any{1, 2, 3}},
+		{`let a = []; append(a, 1, 2, 3); a`, []any{1, 2, 3}},
+		{`let a = []; let b = append(a, 1, 2, 3); b`, []any{1, 2, 3}},
 		{`let a = [1, 2, 3, 4]; pop(a); a`, []any{1, 2, 3}},
 		{`let a = [1, 2, 3, 4]; reverse(a); a`, []any{4, 3, 2, 1}},
 		{`let a = [1, 3, 2, 4, 6, 5, 7]; sort(a); a`, []any{1, 2, 3, 4, 5, 6, 7}},
@@ -267,9 +293,9 @@ func TestArrayIndexExpressions(t *testing.T) {
 		{"[1, 2, 3][2]", 3},
 		{"let i = 0; [1][i];", 1},
 		{"[1, 2, 3][1 + 1];", 3},
-		{"let myArray = [1, 2, 3]; myArray[2];", 3},
-		{"let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];", 6},
-		{"let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]", 2},
+		{"let a = [1, 2, 3]; a[2];", 3},
+		{"let a = [1, 2, 3]; a[0] + a[1] + a[2];", 6},
+		{"let a = [1, 2, 3]; let i = a[0]; a[i]", 2},
 	}
 
 	autoTest(t, tests)

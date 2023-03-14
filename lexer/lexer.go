@@ -35,6 +35,24 @@ func (l *Lexer) NextToken() *token.Token {
 		} else {
 			tok = token.NewToken(token.BANG, s)
 		}
+	case '&':
+		if l.peekChar() == '&' {
+			l.readChar()
+			tok = token.NewToken(token.LOGICAL_AND, s+string(l.ch))
+		} else {
+			tok = token.NewToken(token.BITWISE_AND, s)
+		}
+	case '|':
+		if l.peekChar() == '|' {
+			l.readChar()
+			tok = token.NewToken(token.LOGICAL_OR, s+string(l.ch))
+		} else {
+			tok = token.NewToken(token.BITWISE_OR, s)
+		}
+	case '^':
+		tok = token.NewToken(token.BITWISE_XOR, s)
+	case '~':
+		tok = token.NewToken(token.BITWISE_NOT, s)
 	case '+':
 		tok = token.NewToken(token.PLUS, s)
 	case '-':
@@ -43,10 +61,30 @@ func (l *Lexer) NextToken() *token.Token {
 		tok = token.NewToken(token.ASTERISK, s)
 	case '/':
 		tok = token.NewToken(token.SLASH, s)
+	case '%':
+		tok = token.NewToken(token.MOD, s)
 	case '<':
-		tok = token.NewToken(token.LT, s)
+		switch l.peekChar() {
+		case '<':
+			l.readChar()
+			tok = token.NewToken(token.SHL, s+string(l.ch))
+		case '=':
+			l.readChar()
+			tok = token.NewToken(token.LE, s+string(l.ch))
+		default:
+			tok = token.NewToken(token.LT, s)
+		}
 	case '>':
-		tok = token.NewToken(token.GT, s)
+		switch l.peekChar() {
+		case '>':
+			l.readChar()
+			tok = token.NewToken(token.SHR, s+string(l.ch))
+		case '=':
+			l.readChar()
+			tok = token.NewToken(token.GE, s+string(l.ch))
+		default:
+			tok = token.NewToken(token.GT, s)
+		}
 	case ',':
 		tok = token.NewToken(token.COMMA, s)
 	case ':':

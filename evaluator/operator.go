@@ -10,7 +10,8 @@ import (
 var (
 	unaryOperatorFns = map[string]singleOperandFn{
 		"-": neg,
-		"!": bang,
+		"!": not,
+		"~": bitNOT,
 	}
 
 	binaryOperatorFns = map[string]doubleOperandFn{
@@ -18,11 +19,18 @@ var (
 		"-":  sub,
 		"*":  mul,
 		"/":  div,
+		"%":  mod,
 		"<":  lt,
 		">":  gt,
+		"<=": le,
+		">=": ge,
 		"==": eq,
 		"!=": neq,
-		"=":  assign,
+		"&":  bitAND,
+		"|":  bitOR,
+		"^":  bitXOR,
+		"<<": shl,
+		">>": shr,
 	}
 )
 
@@ -36,8 +44,12 @@ func neg(obj object.Object) (object.Object, error) {
 	}
 }
 
-func bang(obj object.Object) (object.Object, error) {
+func not(obj object.Object) (object.Object, error) {
 	return object.NewBoolean(!isTruthy(obj)), nil
+}
+
+func bitNOT(obj object.Object) (object.Object, error) {
+	return object.NewInteger(^objectToInteger(obj)), nil
 }
 
 // binary operator
@@ -60,69 +72,55 @@ func lt(l, r object.Object) (object.Object, error) {
 }
 
 func gt(l, r object.Object) (object.Object, error) {
-	switch l.Type() {
-	case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
-		switch r.Type() {
-		case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
-			return object.NewBoolean(objectToInteger(l) > objectToInteger(r)), nil
-		}
-
-	case object.STRING_OBJ:
-		switch r.Type() {
-		case object.STRING_OBJ:
-			return object.NewBoolean(l.(*object.String).Value > r.(*object.String).Value), nil
-		}
+	res, err := lt(r, l)
+	if err != nil {
+		return nil, fmt.Errorf("'>' not supported between '%s' and '%s'", l.Type(), r.Type())
 	}
+	return res, nil
+}
 
-	return nil, fmt.Errorf("'>' not supported between '%s' and '%s'", l.Type(), r.Type())
+func le(l, r object.Object) (object.Object, error) {
+	res, err := gt(l, r)
+	if err != nil {
+		return nil, fmt.Errorf("'<=' not supported between '%s' and '%s'", l.Type(), r.Type())
+	}
+	return not(res)
+}
+
+func ge(l, r object.Object) (object.Object, error) {
+	res, err := lt(l, r)
+	if err != nil {
+		return nil, fmt.Errorf("'>=' not supported between '%s' and '%s'", l.Type(), r.Type())
+	}
+	return not(res)
 }
 
 func eq(l, r object.Object) (object.Object, error) {
-	switch l.Type() {
-	case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
-		switch r.Type() {
-		case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
-			return object.NewBoolean(objectToInteger(l) == objectToInteger(r)), nil
-		}
-
-	case object.STRING_OBJ:
-		switch r.Type() {
-		case object.STRING_OBJ:
-			return object.NewBoolean(l.(*object.String).Value == r.(*object.String).Value), nil
-		}
-
-	case object.NULL_OBJ:
-		switch r.Type() {
-		case object.NULL_OBJ:
-			return object.TRUE, nil
-		}
+	if l.Type() == object.NULL_OBJ && r.Type() == object.NULL_OBJ {
+		return object.TRUE, nil
 	}
 
-	return nil, fmt.Errorf("'==' not supported between '%s' and '%s'", l.Type(), r.Type())
+	defaultErr := fmt.Errorf("'==' not supported between '%s' and '%s'", l.Type(), r.Type())
+	if res, err := lt(l, r); err != nil {
+		return nil, defaultErr
+	} else if res == object.TRUE {
+		return object.FALSE, nil
+	}
+
+	if res, err := gt(l, r); err != nil {
+		return nil, defaultErr
+	} else {
+		return not(res)
+	}
 }
 
 func neq(l, r object.Object) (object.Object, error) {
-	switch l.Type() {
-	case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
-		switch r.Type() {
-		case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
-			return object.NewBoolean(objectToInteger(l) != objectToInteger(r)), nil
-		}
-
-	case object.STRING_OBJ:
-		switch r.Type() {
-		case object.STRING_OBJ:
-			return object.NewBoolean(l.(*object.String).Value != r.(*object.String).Value), nil
-		}
-
-	case object.NULL_OBJ:
-		switch r.Type() {
-		case object.NULL_OBJ:
-			return object.FALSE, nil
-		}
+	res, err := eq(l, r)
+	if err != nil {
+		return nil, fmt.Errorf("'!=' not supported between '%s' and '%s'", l.Type(), r.Type())
 	}
 
-	return nil, fmt.Errorf("'!=' not supported between '%s' and '%s'", l.Type(), r.Type())
+	return not(res)
 }
 
 func add(l, r object.Object) (object.Object, error) {
@@ -219,15 +217,88 @@ func div(l, r object.Object) (object.Object, error) {
 	return nil, fmt.Errorf("'/' not supported between '%s' and '%s'", l.Type(), r.Type())
 }
 
-func assign(l, r object.Object) (object.Object, error) {
-	ident, ok := l.(*object.Identifier)
-	if !ok {
-		return nil, errors.New("cannot assign to literal")
+func mod(l, r object.Object) (object.Object, error) {
+	switch l.Type() {
+	case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
+		switch r.Type() {
+		case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
+			modulus := objectToInteger(r)
+			if modulus == 0 {
+				return nil, errors.New("integer division or modulo by zero")
+			}
+			return object.NewInteger(((objectToInteger(l) % modulus) + modulus) % modulus), nil
+		}
 	}
 
-	ident.Set(ident.Name, r)
+	return nil, fmt.Errorf("'mod' not supported between '%s' and '%s'", l.Type(), r.Type())
+}
 
-	return nil, nil
+func bitAND(l, r object.Object) (object.Object, error) {
+	switch l.Type() {
+	case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
+		switch r.Type() {
+		case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
+			return object.NewInteger(objectToInteger(l) & objectToInteger(r)), nil
+		}
+	}
+
+	return nil, fmt.Errorf("'&' not supported between '%s' and '%s'", l.Type(), r.Type())
+}
+
+func bitOR(l, r object.Object) (object.Object, error) {
+	switch l.Type() {
+	case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
+		switch r.Type() {
+		case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
+			return object.NewInteger(objectToInteger(l) | objectToInteger(r)), nil
+		}
+	}
+
+	return nil, fmt.Errorf("'|' not supported between '%s' and '%s'", l.Type(), r.Type())
+}
+
+func bitXOR(l, r object.Object) (object.Object, error) {
+	switch l.Type() {
+	case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
+		switch r.Type() {
+		case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
+			return object.NewInteger(objectToInteger(l) ^ objectToInteger(r)), nil
+		}
+	}
+
+	return nil, fmt.Errorf("'^' not supported between '%s' and '%s'", l.Type(), r.Type())
+}
+
+func shl(l, r object.Object) (object.Object, error) {
+	switch l.Type() {
+	case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
+		switch r.Type() {
+		case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
+			shift := objectToInteger(r)
+			if shift < 0 {
+				return nil, errors.New("negative shift amount")
+			}
+			return object.NewInteger(objectToInteger(l) << shift), nil
+		}
+	}
+
+	return nil, fmt.Errorf("'<<' not supported between '%s' and '%s'", l.Type(), r.Type())
+}
+
+func shr(l, r object.Object) (object.Object, error) {
+	switch l.Type() {
+	case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
+		switch r.Type() {
+		case object.INTEGER_OBJ, object.BOOLEAN_OBJ:
+			shift := objectToInteger(r)
+			if shift < 0 {
+				return nil, errors.New("negative shift amount")
+			}
+			return object.NewInteger(objectToInteger(l) >> shift), nil
+		}
+	}
+
+	return nil, fmt.Errorf("'>>' not supported between '%s' and '%s'", l.Type(), r.Type())
 }
 
 func objectToInteger(obj object.Object) int64 {

@@ -7,6 +7,6 @@ import (
 )
 
 func main() {
-	fmt.Println("Feel free to type in commands")
+	fmt.Println("Welcome to YL")
 	repl.Start(os.Stdin, os.Stdout)
 }

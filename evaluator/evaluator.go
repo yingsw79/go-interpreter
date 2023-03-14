@@ -24,6 +24,9 @@ func Eval(node ast.Node, env *object.Environment) (object.Object, error) {
 	case *ast.ReturnStatement:
 		return evalReturnStatement(node, env)
 
+	case *ast.ExpressionList:
+		return evalExpressionList(node, env)
+
 	case *ast.Identifier:
 		return evalIdentifier(node, env)
 
@@ -42,6 +45,12 @@ func Eval(node ast.Node, env *object.Environment) (object.Object, error) {
 	case *ast.InfixExpression:
 		return evalInfixExpression(node, env)
 
+	case *ast.ShortCircuitExpression:
+		return evalShortCircuitExpression(node, env)
+
+	case *ast.AssignExpression:
+		return evalAssignExpression(node, env, false)
+
 	case *ast.IfExpression:
 		return evalIfExpression(node, env)
 
@@ -55,7 +64,7 @@ func Eval(node ast.Node, env *object.Environment) (object.Object, error) {
 		return evalArrayLiteral(node, env)
 
 	case *ast.IndexExpression:
-		return evalIndexExpression(node, env)
+		return evalIndexExpression(node, env, false)
 
 	default:
 		return nil, errors.New("invalid syntax")
@@ -96,19 +105,23 @@ func evalExpressionStatement(es *ast.ExpressionStatement, env *object.Environmen
 }
 
 func evalLetStatement(ls *ast.LetStatement, env *object.Environment) (object.Object, error) {
-	name := ls.Name.Value
-	if env.IsExist(name) {
-		return nil, fmt.Errorf("identifier '%s' has already been declared", name)
+	switch e := ls.Value.(type) {
+	case *ast.AssignExpression:
+		if _, err := evalAssignExpression(e, env, true); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
+	case *ast.Identifier, *ast.ExpressionList:
+		idents, err := checkAssignable(e, env, true)
+		if err != nil {
+			return nil, err
+		}
+		return assign(idents, nil)
+
+	default:
+		return nil, errors.New("invalid syntax")
 	}
-
-	val, err := Eval(ls.Value, env)
-	if err != nil {
-		return nil, err
-	}
-
-	env.Set(name, val)
-
-	return nil, nil
 }
 
 func evalReturnStatement(rs *ast.ReturnStatement, env *object.Environment) (object.Object, error) {
@@ -122,10 +135,7 @@ func evalReturnStatement(rs *ast.ReturnStatement, env *object.Environment) (obje
 
 func evalIdentifier(ident *ast.Identifier, env *object.Environment) (object.Object, error) {
 	name := ident.Value
-	if val, identEnv := env.Get(name); val != nil {
-		if ident.IsAssign {
-			return object.NewIdentifier(name, val, identEnv), nil
-		}
+	if val, _ := env.Get(name); val != nil {
 		return val, nil
 	}
 
@@ -189,6 +199,127 @@ func evalBinaryOperator(operator string, l, r object.Object) (object.Object, err
 	return fn(l, r)
 }
 
+func evalShortCircuitExpression(sc *ast.ShortCircuitExpression, env *object.Environment) (object.Object, error) {
+	l, err := Eval(sc.Left, env)
+	if err != nil {
+		return nil, err
+	}
+
+	switch sc.Operator {
+	case "&&":
+		if !isTruthy(l) {
+			return l, nil
+		}
+	case "||":
+		if isTruthy(l) {
+			return l, nil
+		}
+	}
+
+	return Eval(sc.Right, env)
+}
+
+func evalAssignExpression(ae *ast.AssignExpression, env *object.Environment, isDeclaration bool) (object.Object, error) {
+	var r object.Object
+	var err error
+	if e, ok := ae.Right.(*ast.AssignExpression); ok {
+		r, err = evalAssignExpression(e, env, isDeclaration)
+	} else {
+		r, err = Eval(ae.Right, env)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	as, err := checkAssignable(ae.Left, env, isDeclaration)
+	if err != nil {
+		return nil, err
+	}
+	return assign(as, r)
+}
+
+func checkAssignable(e ast.Expression, env *object.Environment, isDeclaration bool) ([]object.Assignable, error) {
+	var res []object.Assignable
+
+	switch e := e.(type) {
+	case *ast.Identifier:
+		ident, err := newIdentifier(e.Value, env, isDeclaration)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, ident)
+		return res, nil
+
+	case *ast.ExpressionList:
+		for _, v := range e.Elements {
+			tmp, err := checkAssignable(v, env, isDeclaration)
+			if err != nil {
+				return nil, err
+			}
+			res = append(res, tmp...)
+		}
+		return res, nil
+
+	case *ast.IndexExpression:
+		if !isDeclaration {
+			ie, err := evalIndexExpression(e, env, true)
+			if err != nil {
+				return nil, err
+			}
+			res = append(res, ie.(object.Assignable))
+			return res, nil
+		}
+	}
+
+	return nil, errors.New("invalid syntax")
+}
+
+func newIdentifier(name string, env *object.Environment, isDeclaration bool) (*object.Identifier, error) {
+	if isDeclaration {
+		if env.IsExist(name) {
+			return nil, fmt.Errorf("identifier '%s' has already been declared", name)
+		}
+		return object.NewIdentifier(name, env), nil
+	}
+
+	if val, identEnv := env.Get(name); val != nil {
+		return object.NewIdentifier(name, identEnv), nil
+	}
+	return nil, fmt.Errorf("name '%s' is not defined", name)
+}
+
+func assign(as []object.Assignable, r object.Object) (object.Object, error) {
+	if r != nil {
+		if expList, ok := r.(*object.ExpressionList); ok {
+			if len(as) != len(expList.Elements) {
+				return nil, errors.New("invalid syntax")
+			}
+			for i, o := range expList.Elements {
+				as[i].Set(o)
+			}
+		} else {
+			if len(as) != 1 {
+				return nil, errors.New("invalid syntax")
+			}
+			as[0].Set(r)
+		}
+	} else {
+		for _, ident := range as {
+			ident.Set(object.NULL)
+		}
+	}
+	return r, nil
+}
+
+func evalExpressionList(el *ast.ExpressionList, env *object.Environment) (object.Object, error) {
+	elements, err := evalExpressions(el.Elements, env)
+	if err != nil {
+		return nil, err
+	}
+	return object.NewExpressionList(elements), nil
+}
+
 func evalIfExpression(ie *ast.IfExpression, env *object.Environment) (object.Object, error) {
 	condition, err := Eval(ie.Condition, env)
 	if err != nil {
@@ -224,7 +355,6 @@ func evalCallExpression(ce *ast.CallExpression, env *object.Environment) (object
 
 func evalExpressions(exps []ast.Expression, env *object.Environment) ([]object.Object, error) {
 	res := []object.Object{}
-
 	for _, e := range exps {
 		evaluated, err := Eval(e, env)
 		if err != nil {
@@ -232,23 +362,18 @@ func evalExpressions(exps []ast.Expression, env *object.Environment) ([]object.O
 		}
 		res = append(res, evaluated)
 	}
-
 	return res, nil
 }
 
 func extendFunctionEnv(fn *object.Function, args []object.Object) *object.Environment {
 	env := object.NewEnclosedEnvironment(fn.Env)
-
 	for i, param := range fn.Parameters {
 		env.Set(param.Value, args[i])
 	}
-
 	return env
 }
 
 func applyFunction(obj object.Object, args []object.Object) (object.Object, error) {
-	// obj = unwrapIdentValue(obj)
-
 	switch fn := obj.(type) {
 	case *object.Function:
 		extendEnv := extendFunctionEnv(fn, args)
@@ -256,7 +381,6 @@ func applyFunction(obj object.Object, args []object.Object) (object.Object, erro
 		if err != nil {
 			return nil, err
 		}
-
 		return unwrapReturnValue(res), nil
 
 	case *object.Builtin:
@@ -276,7 +400,7 @@ func evalArrayLiteral(al *ast.ArrayLiteral, env *object.Environment) (object.Obj
 	return object.NewArray(elements), nil
 }
 
-func evalIndexExpression(ie *ast.IndexExpression, env *object.Environment) (object.Object, error) {
+func evalIndexExpression(ie *ast.IndexExpression, env *object.Environment, isAssignment bool) (object.Object, error) {
 	l, err := Eval(ie.Left, env)
 	if err != nil {
 		return nil, err
@@ -293,20 +417,20 @@ func evalIndexExpression(ie *ast.IndexExpression, env *object.Environment) (obje
 			return nil, fmt.Errorf("array indices must be integers, not '%s'", idx.Type())
 		}
 
-		return evalArrayIndexExpression(l, idx)
+		return evalArrayIndexExpression(l, idx, isAssignment)
 	default:
 		return nil, fmt.Errorf("index operator not supported: '%s'", l.Type())
 	}
 }
 
-func evalArrayIndexExpression(array, index object.Object) (object.Object, error) {
-	arr := array.(*object.Array).Elements
-	idx := index.(*object.Integer).Value
-
+func evalArrayIndexExpression(array, index object.Object, isAssignment bool) (object.Object, error) {
+	arr, idx := array.(*object.Array).Elements, index.(*object.Integer).Value
 	if idx < 0 || idx >= int64(len(arr)) {
 		return nil, fmt.Errorf("array index out of range")
 	}
-
+	if isAssignment {
+		return object.NewArrayIndex(arr, idx), nil
+	}
 	return arr[idx], nil
 }
 
@@ -316,10 +440,3 @@ func unwrapReturnValue(obj object.Object) object.Object {
 	}
 	return obj
 }
-
-// func unwrapIdentValue(obj object.Object) object.Object {
-// 	if ident, ok := obj.(*object.Identifier); ok {
-// 		return ident.Value
-// 	}
-// 	return obj
-// }

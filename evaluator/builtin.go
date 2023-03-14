@@ -41,13 +41,13 @@ var builtins = map[string]*object.Builtin{
 			return object.NULL, nil
 		},
 	},
-	"push": {
+	"append": {
 		Fn: func(args ...object.Object) (object.Object, error) {
 			if len(args) == 0 {
 				return nil, errors.New("wrong number of arguments: got=0, want>0")
 			}
 
-			arr, err := checkIsArray("push", args[0])
+			arr, err := checkIsArray("append", args[0])
 			if err != nil {
 				return nil, err
 			}

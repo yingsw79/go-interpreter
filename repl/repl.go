@@ -31,13 +31,14 @@ func Start(in io.Reader, out io.Writer) {
 			continue
 		}
 
+		// fmt.Fprintln(out, program.String())
 		res, err := evaluator.Eval(program, env)
 		if err != nil {
 			fmt.Fprintln(out, "Error:", err)
 			continue
 		}
 
-		if res != nil {
+		if res != nil && res.Type() != object.EXPLIST_OBJ {
 			fmt.Fprintln(out, res.Inspect())
 		}
 	}

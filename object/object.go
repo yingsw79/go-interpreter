@@ -15,7 +15,7 @@ const (
 	FUNCTION_OBJ     = "FUNCTION"
 	BUILTIN_OBJ      = "BUILTIN"
 	ARRAY_OBJ        = "ARRAY"
-	IDENT_OBJ        = "IDENT"
+	EXPLIST_OBJ      = "EXPLIST"
 	NULL_OBJ         = "NULL"
 )
 
@@ -32,30 +32,13 @@ type Object interface {
 	Inspect() string
 }
 
-type Identifier struct {
-	Name  string
-	Value Object
-	*Environment
-}
-
-func NewIdentifier(name string, v Object, env *Environment) *Identifier {
-	return &Identifier{name, v, env}
-}
-
-func (i *Identifier) Type() ObjectType { return IDENT_OBJ }
-func (i *Identifier) Inspect() string  { return i.Value.Inspect() }
-
-type Integer struct {
-	Value int64
-}
+type Integer struct{ Value int64 }
 
 func NewInteger(v int64) *Integer   { return &Integer{Value: v} }
 func (i *Integer) Type() ObjectType { return INTEGER_OBJ }
 func (i *Integer) Inspect() string  { return strconv.FormatInt(i.Value, 10) }
 
-type Boolean struct {
-	Value bool
-}
+type Boolean struct{ Value bool }
 
 func NewBoolean(v bool) *Boolean {
 	if v {
@@ -67,9 +50,7 @@ func NewBoolean(v bool) *Boolean {
 func (b *Boolean) Type() ObjectType { return BOOLEAN_OBJ }
 func (b *Boolean) Inspect() string  { return strconv.FormatBool(b.Value) }
 
-type String struct {
-	Value string
-}
+type String struct{ Value string }
 
 func NewString(v string) *String   { return &String{Value: v} }
 func (s *String) Type() ObjectType { return STRING_OBJ }
@@ -80,9 +61,7 @@ type Null struct{}
 func (n *Null) Type() ObjectType { return NULL_OBJ }
 func (n *Null) Inspect() string  { return "null" }
 
-type ReturnValue struct {
-	Value Object
-}
+type ReturnValue struct{ Value Object }
 
 func NewReturnValue(v Object) *ReturnValue { return &ReturnValue{Value: v} }
 func (rv *ReturnValue) Type() ObjectType   { return RETURN_VALUE_OBJ }
@@ -101,48 +80,71 @@ func NewFunction(params []*ast.Identifier, body *ast.BlockStatement, env *Enviro
 func (f *Function) Type() ObjectType { return FUNCTION_OBJ }
 func (f *Function) Inspect() string {
 	var b strings.Builder
-
 	params := []string{}
 	for _, p := range f.Parameters {
 		params = append(params, p.String())
 	}
-
 	b.WriteString("fn")
 	b.WriteString("(")
 	b.WriteString(strings.Join(params, ", "))
 	b.WriteString(") {\n")
 	b.WriteString(f.Body.String())
 	b.WriteString("\n}")
-
 	return b.String()
 }
 
 type BuiltinFn func(...Object) (Object, error)
-
-type Builtin struct {
-	Fn BuiltinFn
-}
+type Builtin struct{ Fn BuiltinFn }
 
 func (b *Builtin) Type() ObjectType { return BUILTIN_OBJ }
 func (b *Builtin) Inspect() string  { return "builtin function" }
 
-type Array struct {
-	Elements []Object
+type ExpressionList struct{ Elements []Object }
+
+func NewExpressionList(es []Object) *ExpressionList { return &ExpressionList{Elements: es} }
+func (el *ExpressionList) Type() ObjectType         { return EXPLIST_OBJ }
+func (el *ExpressionList) Inspect() string {
+	var b strings.Builder
+	elements := []string{}
+	for _, e := range el.Elements {
+		elements = append(elements, e.Inspect())
+	}
+	b.WriteString(strings.Join(elements, ", "))
+	return b.String()
 }
+
+type Array struct{ Elements []Object }
 
 func NewArray(es []Object) *Array   { return &Array{Elements: es} }
 func (arr *Array) Type() ObjectType { return ARRAY_OBJ }
 func (arr *Array) Inspect() string {
 	var b strings.Builder
-
 	elements := []string{}
 	for _, e := range arr.Elements {
 		elements = append(elements, e.Inspect())
 	}
-
 	b.WriteString("[")
 	b.WriteString(strings.Join(elements, ", "))
 	b.WriteString("]")
-
 	return b.String()
 }
+
+type Assignable interface{ Set(Object) }
+
+type Identifier struct {
+	Name string
+	Env  *Environment
+}
+
+func NewIdentifier(name string, env *Environment) *Identifier { return &Identifier{name, env} }
+func (i *Identifier) Set(obj Object)                          { i.Env.Set(i.Name, obj) }
+
+type ArrayIndex struct {
+	Arr []Object
+	Idx int64
+}
+
+func NewArrayIndex(arr []Object, idx int64) *ArrayIndex { return &ArrayIndex{arr, idx} }
+func (ai *ArrayIndex) Set(obj Object)                   { ai.Arr[ai.Idx] = obj }
+func (ai *ArrayIndex) Type() ObjectType                 { return "" }
+func (ai *ArrayIndex) Inspect() string                  { return "" }
