@@ -24,6 +24,9 @@ func Eval(node ast.Node, env *object.Environment) (object.Object, error) {
 	case *ast.ReturnStatement:
 		return evalReturnStatement(node, env)
 
+	case *ast.ForLoopStatement:
+		return evalForLoopStatement(node, env)
+
 	case *ast.ExpressionList:
 		return evalExpressionList(node, env)
 
@@ -48,8 +51,11 @@ func Eval(node ast.Node, env *object.Environment) (object.Object, error) {
 	case *ast.ShortCircuitExpression:
 		return evalShortCircuitExpression(node, env)
 
-	case *ast.AssignExpression:
-		return evalAssignExpression(node, env, false)
+	case *ast.PrefixIncAndDec:
+		return evalPrefixIncAndDec(node, env)
+
+	case *ast.Assignment:
+		return evalAssignment(node, env, false)
 
 	case *ast.IfExpression:
 		return evalIfExpression(node, env)
@@ -72,7 +78,7 @@ func Eval(node ast.Node, env *object.Environment) (object.Object, error) {
 }
 
 func evalProgram(p *ast.Program, env *object.Environment) (res object.Object, err error) {
-	for _, statement := range p.Statements {
+	for _, statement := range p.Stmts {
 		if res, err = Eval(statement, env); err != nil {
 			return
 		}
@@ -86,8 +92,9 @@ func evalProgram(p *ast.Program, env *object.Environment) (res object.Object, er
 	return
 }
 
+// TODO scope
 func evalBlockStatement(bs *ast.BlockStatement, env *object.Environment) (res object.Object, err error) {
-	for _, statement := range bs.Statements {
+	for _, statement := range bs.Stmts {
 		if res, err = Eval(statement, env); err != nil {
 			return
 		}
@@ -101,36 +108,73 @@ func evalBlockStatement(bs *ast.BlockStatement, env *object.Environment) (res ob
 }
 
 func evalExpressionStatement(es *ast.ExpressionStatement, env *object.Environment) (object.Object, error) {
-	return Eval(es.Expression, env)
+	return Eval(es.Expr, env)
 }
 
 func evalLetStatement(ls *ast.LetStatement, env *object.Environment) (object.Object, error) {
 	switch e := ls.Value.(type) {
-	case *ast.AssignExpression:
-		if _, err := evalAssignExpression(e, env, true); err != nil {
+	case *ast.Assignment:
+		if _, err := evalAssignment(e, env, true); err != nil {
 			return nil, err
 		}
-		return nil, nil
 
 	case *ast.Identifier, *ast.ExpressionList:
 		idents, err := checkAssignable(e, env, true)
 		if err != nil {
 			return nil, err
 		}
-		return assign(idents, nil)
+		for _, id := range idents {
+			id.Set(object.NULL)
+		}
 
 	default:
 		return nil, errors.New("invalid syntax")
 	}
+
+	return nil, nil
 }
 
 func evalReturnStatement(rs *ast.ReturnStatement, env *object.Environment) (object.Object, error) {
+	if rs.ReturnValue == nil {
+		return object.NewReturnValue(nil), nil
+	}
+
 	val, err := Eval(rs.ReturnValue, env)
 	if err != nil {
 		return nil, err
 	}
-
 	return object.NewReturnValue(val), nil
+}
+
+// TODO break continue
+func evalForLoopStatement(fs *ast.ForLoopStatement, env *object.Environment) (object.Object, error) {
+	env = object.NewEnclosedEnvironment(env)
+	if fs.Init != nil {
+		if _, err := Eval(fs.Init, env); err != nil {
+			return nil, err
+		}
+	}
+
+	for {
+		if fs.Condition != nil {
+			cond, err := Eval(fs.Condition, env)
+			if err != nil {
+				return nil, err
+			}
+			if !isTruthy(cond) {
+				break
+			}
+		}
+		if _, err := Eval(fs.Body, env); err != nil {
+			return nil, err
+		}
+		if fs.Update != nil {
+			if _, err := Eval(fs.Update, env); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return nil, nil
 }
 
 func evalIdentifier(ident *ast.Identifier, env *object.Environment) (object.Object, error) {
@@ -219,23 +263,26 @@ func evalShortCircuitExpression(sc *ast.ShortCircuitExpression, env *object.Envi
 	return Eval(sc.Right, env)
 }
 
-func evalAssignExpression(ae *ast.AssignExpression, env *object.Environment, isDeclaration bool) (object.Object, error) {
-	var r object.Object
-	var err error
-	if e, ok := ae.Right.(*ast.AssignExpression); ok {
-		r, err = evalAssignExpression(e, env, isDeclaration)
-	} else {
-		r, err = Eval(ae.Right, env)
-	}
+func evalPrefixIncAndDec(p *ast.PrefixIncAndDec, env *object.Environment) (object.Object, error) {
+	return evalAssignment(p.Expr, env, false)
+}
 
-	if err != nil {
-		return nil, err
-	}
-
+func evalAssignment(ae *ast.Assignment, env *object.Environment, isDeclaration bool) (object.Object, error) {
 	as, err := checkAssignable(ae.Left, env, isDeclaration)
 	if err != nil {
 		return nil, err
 	}
+
+	var r object.Object
+	if e, ok := ae.Right.(*ast.Assignment); ok {
+		r, err = evalAssignment(e, env, isDeclaration)
+	} else {
+		r, err = Eval(ae.Right, env)
+	}
+	if err != nil {
+		return nil, err
+	}
+
 	return assign(as, r)
 }
 
@@ -252,7 +299,7 @@ func checkAssignable(e ast.Expression, env *object.Environment, isDeclaration bo
 		return res, nil
 
 	case *ast.ExpressionList:
-		for _, v := range e.Elements {
+		for _, v := range e.Exprs {
 			tmp, err := checkAssignable(v, env, isDeclaration)
 			if err != nil {
 				return nil, err
@@ -290,30 +337,28 @@ func newIdentifier(name string, env *object.Environment, isDeclaration bool) (*o
 }
 
 func assign(as []object.Assignable, r object.Object) (object.Object, error) {
-	if r != nil {
-		if expList, ok := r.(*object.ExpressionList); ok {
-			if len(as) != len(expList.Elements) {
-				return nil, errors.New("invalid syntax")
-			}
-			for i, o := range expList.Elements {
-				as[i].Set(o)
-			}
-		} else {
-			if len(as) != 1 {
-				return nil, errors.New("invalid syntax")
-			}
-			as[0].Set(r)
+	if r == nil {
+		return nil, errors.New("the right value of '=' cannot be empty")
+	}
+
+	if expList, ok := r.(*object.ExpressionList); ok {
+		if len(as) != len(expList.Elements) {
+			return nil, errors.New("the lengths of the left and right sides of '=' are not equal")
+		}
+		for i, o := range expList.Elements {
+			as[i].Set(o)
 		}
 	} else {
-		for _, ident := range as {
-			ident.Set(object.NULL)
+		if len(as) != 1 {
+			return nil, errors.New("the lengths of the left and right sides of '=' are not equal")
 		}
+		as[0].Set(r)
 	}
 	return r, nil
 }
 
 func evalExpressionList(el *ast.ExpressionList, env *object.Environment) (object.Object, error) {
-	elements, err := evalExpressions(el.Elements, env)
+	elements, err := evalExpressions(el.Exprs, env)
 	if err != nil {
 		return nil, err
 	}
@@ -336,16 +381,16 @@ func evalIfExpression(ie *ast.IfExpression, env *object.Environment) (object.Obj
 }
 
 func evalFunctionLiteral(fl *ast.FunctionLiteral, env *object.Environment) (object.Object, error) {
-	return object.NewFunction(fl.Parameters, fl.Body, env), nil
+	return object.NewFunction(fl.Params, fl.Body, env), nil
 }
 
 func evalCallExpression(ce *ast.CallExpression, env *object.Environment) (object.Object, error) {
-	fn, err := Eval(ce.Function, env)
+	fn, err := Eval(ce.Func, env)
 	if err != nil {
 		return nil, err
 	}
 
-	args, err := evalExpressions(ce.Arguments, env)
+	args, err := evalExpressions(ce.Args, env)
 	if err != nil {
 		return nil, err
 	}

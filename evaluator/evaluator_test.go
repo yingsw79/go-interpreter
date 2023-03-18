@@ -179,6 +179,18 @@ func TestLetStatements(t *testing.T) {
 	autoTest(t, tests)
 }
 
+func TestForLoopStatements(t *testing.T) {
+	tests := []test{
+		{`let arr, s = [1, 2, 3, 4, 5], 0
+		for (let i = 0; i < len(arr); ++i) {
+			s = s + arr[i]
+		}
+		s`, 15},
+	}
+
+	autoTest(t, tests)
+}
+
 func TestFunctionObject(t *testing.T) {
 	input := "fn(x) { x + 2; };"
 
@@ -200,7 +212,7 @@ func TestFunctionObject(t *testing.T) {
 		t.Fatalf("parameter is not 'x'. got=%q", fn.Parameters[0])
 	}
 
-	expectedBody := "(x + 2)"
+	expectedBody := "{ (x + 2); }"
 
 	if fn.Body.String() != expectedBody {
 		t.Fatalf("body is not %q. got=%q", expectedBody, fn.Body.String())

@@ -54,9 +54,21 @@ func (l *Lexer) NextToken() *token.Token {
 	case '~':
 		tok = token.NewToken(token.BITWISE_NOT, s)
 	case '+':
-		tok = token.NewToken(token.PLUS, s)
+		switch l.peekChar() {
+		case '+':
+			l.readChar()
+			tok = token.NewToken(token.INC, s+string(l.ch))
+		default:
+			tok = token.NewToken(token.PLUS, s)
+		}
 	case '-':
-		tok = token.NewToken(token.MINUS, s)
+		switch l.peekChar() {
+		case '-':
+			l.readChar()
+			tok = token.NewToken(token.DEC, s+string(l.ch))
+		default:
+			tok = token.NewToken(token.MINUS, s)
+		}
 	case '*':
 		tok = token.NewToken(token.ASTERISK, s)
 	case '/':
