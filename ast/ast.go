@@ -341,13 +341,22 @@ func (as *Assignment) String() string {
 }
 
 type PrefixIncAndDec struct {
-	Token *token.Token // '++' '--'
+	Token *token.Token // '++' '--' '+='
 	Expr  *Assignment
 }
 
 func (p *PrefixIncAndDec) expressionNode()      {}
 func (p *PrefixIncAndDec) TokenLiteral() string { return p.Token.Literal }
 func (p *PrefixIncAndDec) String() string       { return p.Expr.String() }
+
+type AssignmentConverter struct {
+	Token *token.Token // '++' '--' '+='
+	Expr  *Assignment
+}
+
+func (ac *AssignmentConverter) expressionNode()      {}
+func (ac *AssignmentConverter) TokenLiteral() string { return ac.Token.Literal }
+func (ac *AssignmentConverter) String() string       { return ac.Expr.String() }
 
 type ShortCircuitExpression struct {
 	Token       *token.Token

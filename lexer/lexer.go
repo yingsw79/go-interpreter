@@ -58,6 +58,9 @@ func (l *Lexer) NextToken() *token.Token {
 		case '+':
 			l.readChar()
 			tok = token.NewToken(token.INC, s+string(l.ch))
+		case '=':
+			l.readChar()
+			tok = token.NewToken(token.PLUS_ASSIGN, s+string(l.ch))
 		default:
 			tok = token.NewToken(token.PLUS, s)
 		}
@@ -66,6 +69,9 @@ func (l *Lexer) NextToken() *token.Token {
 		case '-':
 			l.readChar()
 			tok = token.NewToken(token.DEC, s+string(l.ch))
+		case '=':
+			l.readChar()
+			tok = token.NewToken(token.MINUS_ASSIGN, s+string(l.ch))
 		default:
 			tok = token.NewToken(token.MINUS, s)
 		}

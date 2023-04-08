@@ -30,6 +30,7 @@ const (
 var precedences = map[token.TokenType]int{
 	token.COMMA:       ASSIGN,
 	token.ASSIGN:      ASSIGN,
+	token.PLUS_ASSIGN: ASSIGN,
 	token.LOGICAL_AND: LOGICAL_AND,
 	token.LOGICAL_OR:  LOGICAL_OR,
 	token.BITWISE_AND: BITWISE_AND,
@@ -109,6 +110,7 @@ func NewParser(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.LE, p.parseInfixExpression)
 	p.registerInfix(token.GE, p.parseInfixExpression)
 	p.registerInfix(token.COMMA, p.parseCommaExpression)
+	p.registerInfix(token.PLUS_ASSIGN, p.parseAssignmentConverter)
 
 	p.nextToken()
 	p.nextToken()
@@ -160,7 +162,6 @@ func (p *Parser) parseLetStatement() (*ast.LetStatement, error) {
 	return stmt, nil
 }
 
-// TODO empty ReturnValue
 func (p *Parser) parseReturnStatement() (*ast.ReturnStatement, error) {
 	stmt := &ast.ReturnStatement{Token: p.curToken}
 
@@ -320,7 +321,38 @@ func (p *Parser) parsePrefixIncAndDec() (ast.Expression, error) {
 		Operator: op,
 	}
 	res.Expr = expr
+	return res, nil
+}
 
+// TODO
+func (p *Parser) parseAssignmentConverter(left ast.Expression) (ast.Expression, error) {
+	res := &ast.AssignmentConverter{Token: p.curToken}
+	expr := &ast.Assignment{Left: left}
+
+	var op string
+	switch p.curToken.Type {
+	case "+=":
+		op = "+"
+	case "-=":
+		op = "-"
+	default:
+		return nil, fmt.Errorf("unknown operator: '%s'", p.curToken.Type)
+	}
+
+	p.nextToken()
+
+	var err error
+	expr.Right, err = p.parseExpression(LOWEST)
+	if err != nil {
+		return nil, err
+	}
+
+	expr.Right = &ast.InfixExpression{
+		Left:     left,
+		Operator: op,
+		Right:    expr.Right,
+	}
+	res.Expr = expr
 	return res, nil
 }
 

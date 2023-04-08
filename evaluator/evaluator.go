@@ -54,6 +54,9 @@ func Eval(node ast.Node, env *object.Environment) (object.Object, error) {
 	case *ast.PrefixIncAndDec:
 		return evalPrefixIncAndDec(node, env)
 
+	case *ast.AssignmentConverter:
+		return evalAssignmentConverter(node, env)
+
 	case *ast.Assignment:
 		return evalAssignment(node, env, false)
 
@@ -136,7 +139,7 @@ func evalLetStatement(ls *ast.LetStatement, env *object.Environment) (object.Obj
 
 func evalReturnStatement(rs *ast.ReturnStatement, env *object.Environment) (object.Object, error) {
 	if rs.ReturnValue == nil {
-		return object.NewReturnValue(nil), nil
+		return object.NewReturnValue(object.NULL), nil
 	}
 
 	val, err := Eval(rs.ReturnValue, env)
@@ -265,6 +268,13 @@ func evalShortCircuitExpression(sc *ast.ShortCircuitExpression, env *object.Envi
 
 func evalPrefixIncAndDec(p *ast.PrefixIncAndDec, env *object.Environment) (object.Object, error) {
 	return evalAssignment(p.Expr, env, false)
+}
+
+func evalAssignmentConverter(ac *ast.AssignmentConverter, env *object.Environment) (object.Object, error) {
+	if _, err := evalAssignment(ac.Expr, env, false); err != nil {
+		return nil, err
+	}
+	return nil, nil
 }
 
 func evalAssignment(ae *ast.Assignment, env *object.Environment, isDeclaration bool) (object.Object, error) {
